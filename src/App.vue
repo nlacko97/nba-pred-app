@@ -13,6 +13,8 @@
 
   const selectedDate = ref(new Date().toISOString().split('T')[0]); // Sets today's date by default
 
+  const selectedDateMobile = ref(new Date().toISOString().split('T')[0]); // Sets today's date by default
+
   const leaderboard = ref([])
 
   const datePicker = ref(null);
@@ -36,6 +38,10 @@
 
   watch(selectedDate, () => {
     getGames()
+  })
+
+  watch(selectedDateMobile, (value) => {
+    selectedDate.value = value;
   })
 
   async function getUsers() {
@@ -226,9 +232,6 @@
               <!-- Button wrapping the entire input area for click anywhere functionality -->
               <button @click="toggleDatePicker"
                 class="w-full z-20 bg-gray-100 text-center rounded-md py-2 px-3 text-gray-700 border border-gray-300 flex items-center justify-between transition">
-                <!-- Displayed Date Text -->
-                <!-- <span>{{ formattedDate }}</span> -->
-
                 <!-- Calendar Icon -->
                 <svg xmlns="http://www.w3.org/2000/svg"
                   class="h-7 w-7 text-gray-500 hover:text-blue-500 transition z-20" fill="none" viewBox="0 0 24 24"
@@ -244,7 +247,7 @@
             </div>
           </div>
           <div class="h-20 flex md:hidden justify-center items-center w-full bg-white px-6 py-4 shadow-md">
-            <input ref="datePicker" type="date" v-model="selectedDate"
+            <input type="date" v-model="selectedDateMobile"
               class="p-2 border rounded-lg text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-300" />
           </div>
 
@@ -298,7 +301,7 @@
             </div>
           </div>
           <div class="bg-white w-full rounded shadow-md py-20 px-4 flex justify-center" v-if="!games.length">
-            <p class="text-2xl font-light uppercase">No games this day</p>
+            <p class="text-2xl font-light uppercase">No games scheduled</p>
           </div>
         </div>
 
