@@ -82,7 +82,7 @@
   })
 
   async function init() {
-    allowPastVotes.value = import.meta.env.VITE_ALLOW_PAST_VOTES ?? false;
+    allowPastVotes.value = import.meta.env.VITE_ALLOW_PAST_VOTES === 'true';
     getUsers()
     getGames()
 
@@ -183,7 +183,7 @@
   const getClass = (game, team) => {
     const hoverClasses = 'hover:bg-blue-50 hover:cursor-pointer ';
     let classes = '';
-    if (session.value && (isValidDate(game.status) || allowPastVotes)) {
+    if (session.value && (isValidDate(game.status) || allowPastVotes.value)) {
       classes = classes.concat(hoverClasses);
     }
 
