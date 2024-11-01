@@ -17,6 +17,8 @@
 
   const datePicker = ref(null);
 
+  const allowPastVotes = ref(false)
+
   window.handleSignInWithGoogle = handleSignInWithGoogle
 
   function sortByAccuracy() {
@@ -80,6 +82,7 @@
   })
 
   async function init() {
+    allowPastVotes.value = import.meta.env.VITE_ALLOW_PAST_VOTES ?? false;
     getUsers()
     getGames()
 
@@ -132,11 +135,20 @@
   }
 
   async function submitPick(game, picked_team_id) {
-    if (!isValidDate(game.status)) {
+    if (!allowPastVotes.value && !isValidDate(game.status)) {
       alert('This game is already in progress or over, you cannot vote anymore :)')
       return;
     }
     const toUpsert = { game_id: game.id, picked_team: picked_team_id, user_id: userId.value };
+
+    if (allowPastVotes.value && game.status === 'Final') {
+      const winner =
+        game.home_team_score > game.away_team_score
+          ? game.home_team
+          : game.away_team
+      toUpsert.correct = picked_team_id === winner.id
+    }
+
     if (game.picks[userId.value]) {
       toUpsert.id = game.picks[userId.value].id;
     }
@@ -171,7 +183,7 @@
   const getClass = (game, team) => {
     const hoverClasses = 'hover:bg-blue-50 hover:cursor-pointer ';
     let classes = '';
-    if (session.value && isValidDate(game.status)) {
+    if (session.value && (isValidDate(game.status) || allowPastVotes)) {
       classes = classes.concat(hoverClasses);
     }
 
