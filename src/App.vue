@@ -217,7 +217,7 @@
 
         <!-- Left Column: Date Picker and Game Cards -->
         <div class="lg:col-span-2 space-y-6">
-          <div class="h-20 flex justify-between items-center w-full bg-white px-6 py-4 shadow-md">
+          <div class="h-20 md:flex hidden justify-between items-center w-full bg-white px-6 py-4 shadow-md">
             <h4 class="text-2xl uppercase">Games</h4>
             <h4 class="text-2xl">
               {{ selectedDate }}
@@ -242,6 +242,10 @@
               <input ref="datePicker" type="date" v-model="selectedDate"
                 class="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer" />
             </div>
+          </div>
+          <div class="h-20 flex md:hidden justify-center items-center w-full bg-white px-6 py-4 shadow-md">
+            <input ref="datePicker" type="date" v-model="selectedDate"
+              class="p-2 border rounded-lg text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-300" />
           </div>
 
           <!-- Game Cards -->
