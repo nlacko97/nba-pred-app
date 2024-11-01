@@ -100,7 +100,7 @@
     if (error) {
       console.error("Google Sign-In Error:", error);
     } else {
-      console.log("Google Sign-In Success:", data);
+      console.log("Google Sign-In Success:");
       init()
     }
   }
@@ -120,15 +120,14 @@
   }
 
   function getStatus(game) {
-    const futureDate = new Date(game.status);
-
-    if (isValidDate(futureDate)) {
-      return formatISOTo24HourTime(futureDate);
+    if (isValidDate(game.status)) {
+      return formatISOTo24HourTime(new Date(game.status));
     }
     return game.status;
   }
 
   function isValidDate(date) {
+    date = new Date(date)
     return date.toString() !== 'Invalid Date';
   }
 
