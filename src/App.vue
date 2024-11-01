@@ -169,7 +169,7 @@
   }
 
   const getClass = (game, team) => {
-    const hoverClasses = 'hover:bg-blue-50 hover:border-2 hover:border-blue-300 hover:cursor-pointer ';
+    const hoverClasses = 'hover:bg-blue-50 hover:cursor-pointer ';
     let classes = '';
     if (session.value && isValidDate(game.status)) {
       classes = classes.concat(hoverClasses);
@@ -234,7 +234,7 @@
 
           <!-- Game Cards -->
           <div v-for="(game, index) in games" :key="index"
-            class="bg-white rounded-xl shadow-md overflow-hidden transform transition duration-100 hover:scale-105">
+            class="bg-white rounded-xl shadow-md overflow-hidden transform transition duration-100">
             <!-- Game Header -->
             <div class="flex justify-between items-center bg-gray-100 px-6 py-3 border-b border-gray-200">
               <p class="text-xs font-medium text-gray-500">{{ game.date }}</p>
@@ -326,7 +326,7 @@
                 </thead>
                 <tbody>
                   <tr v-for="user in leaderboard" :key="user.id"
-                    class="even:bg-gray-50 border-b last:border-0 transform transition duration-100 hover:scale-105 hvoer:underline hover:underline-offset-2 text-lg">
+                    class="even:bg-gray-50 border-b last:border-0 transform transition duration-100 text-lg">
                     <td class="px-4 py-2">{{ user.name }}</td>
                     <td class="px-4 py-2 font-bold">{{ user.points }} <span class="text-gray-500 font-light">({{
                       user.totalPicks
