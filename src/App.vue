@@ -21,6 +21,8 @@
 
   const allowPastVotes = ref(false)
 
+  const yesterdayReport = ref()
+
   window.handleSignInWithGoogle = handleSignInWithGoogle
 
   function sortByAccuracy() {
@@ -38,21 +40,46 @@
 
   watch(selectedDate, () => {
     getGames()
+    updateYesterdayReport()
+  })
+
+  watch(users, () => {
+    updateYesterdayReport()
   })
 
   watch(selectedDateMobile, (value) => {
     selectedDate.value = value;
   })
 
+  function formatYesterdayToDateString() {
+    const date = new Date()
+    date.setDate(date.getDate() - 1)
+    return date.toISOString().split('T')[0]
+  }
+
   async function getUsers() {
-    let { data } = await supabase.from('profiles').select('id, full_name,picks(id,correct)')
-    users.value = data
+    let { data } = await supabase.from('profiles').select('id, full_name,picks(id,correct,game_date:games(date))')
+    users.value = data.map(u => ({ ...u, 'picks': u.picks.map(p => ({ ...p, 'game_date': p.game_date.date })) }))
     leaderboard.value = data.map(user => ({
       name: user.full_name,
       points: user.picks.filter(p => p.correct).length,
       totalPicks: user.picks.filter(p => p.correct !== null).length
     }))
     sortByPoints()
+  }
+
+  function updateYesterdayReport() {
+    const picksFromYesterady = users.value.find(u => u.id === userId.value)?.picks.filter(p => p.game_date === formatYesterdayToDateString() && p.correct !== null);
+    if (picksFromYesterady && picksFromYesterady.length) {
+      const correct = picksFromYesterady.filter(p => p.correct).length;
+      yesterdayReport.value = {
+        correct: correct,
+        total: picksFromYesterady.length,
+        accuracy: (correct * 100 / picksFromYesterady.length).toPrecision(2)
+      }
+    } else {
+      yesterdayReport.value = null
+    }
   }
 
   const toggleDatePicker = () => {
@@ -141,6 +168,9 @@
   }
 
   async function submitPick(game, picked_team_id) {
+    if (!userId.value) {
+      return;
+    }
     if (!allowPastVotes.value && !isValidDate(game.status)) {
       alert('This game is already in progress or over, you cannot vote anymore :)')
       return;
@@ -251,6 +281,18 @@
               class="p-2 border rounded-lg text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-300" />
           </div>
 
+          <div
+            class="bg-white rounded-xl shadow-md px-4 py-6 font-thin text-lg flex flex-col justify-center items-center leading-relaxed"
+            v-if="yesterdayReport">
+            <p>
+              You got <strong>{{ yesterdayReport.correct }}</strong> out of <strong>{{ yesterdayReport.total }}</strong>
+              picks correct from last night!
+            </p>
+            <p class="text-green-600 text-md" v-if="yesterdayReport.accuracy >= 70">That is a very impressive {{ yesterdayReport.accuracy }}% ! Keep it up!</p>
+            <p class="text-yellow-600 text-md" v-if="yesterdayReport.accuracy < 70 && yesterdayReport.accuracy >= 40">That is a decent  {{ yesterdayReport.accuracy }}% ! Let's try to do better tomorrow!</p>
+            <p class="text-red-600 text-md" v-if="yesterdayReport.accuracy < 40">Uh-oh! That is a sub-par {{ yesterdayReport.accuracy }}% ! One off day doesn't define you, let's try again tomorrow!</p>
+          </div>
+
           <!-- Game Cards -->
           <div v-for="(game, index) in games" :key="index"
             class="bg-white rounded-xl shadow-md overflow-hidden transform transition duration-100">
@@ -312,10 +354,10 @@
             <h4 class="text-2xl uppercase">Leaderboard</h4>
           </div>
           <div v-if="session">
-            <div class="bg-white shadow-md rounded pb-40">
+            <div class="bg-white shadow-md rounded pb-40 overflow-hidden">
               <table class="w-full text-sm ">
                 <thead>
-                  <tr class="bg-gray-100 text-xl">
+                  <tr class="bg-gray-100 text-lg md:text-xl">
                     <th class="text-left px-4 py-2 text-gray-600">Name</th>
                     <th class="text-left px-4 py-2 text-gray-600">
                       <div class="flex items-center gap-2">
@@ -345,7 +387,7 @@
                 </thead>
                 <tbody>
                   <tr v-for="user in leaderboard" :key="user.id"
-                    class="even:bg-gray-50 border-b last:border-0 transform transition duration-100 text-lg">
+                    class="even:bg-gray-50 border-b last:border-0 transform transition duration-100 text-md md:text-lg">
                     <td class="px-4 py-2">{{ user.name }}</td>
                     <td class="px-4 py-2 font-bold">{{ user.points }} <span class="text-gray-500 font-light">({{
                       user.totalPicks
@@ -356,9 +398,11 @@
                 </tbody>
               </table>
             </div>
-            <div class="flex w-full justify-center mt-20">
+            <div class="flex w-full justify-center mt-6">
+              <!-- <button @click="getUsers"
+                class="rounded px-4 py-1 bg-white border border-gray-200 text-gray-400 hover:underline underline-offset-2 transition-all">Refresh leaderboard</button> -->
               <button @click="signOut"
-                class="px-4 py-1 bg-white border border-gray-400 hover:underline underline-offset-2 transition-all">Sign
+                class="rounded px-4 py-1 bg-white border border-gray-200 text-gray-400 hover:underline underline-offset-2 transition-all">Sign
                 out</button>
             </div>
           </div>
