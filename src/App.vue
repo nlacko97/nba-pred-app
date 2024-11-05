@@ -38,7 +38,21 @@
     })
   }
 
-  watch(selectedDate, () => {
+  function goToPreviousDay() {
+    const date = new Date(selectedDate.value);
+    date.setDate(date.getDate() - 1)
+    selectedDate.value = date.toISOString().split('T')[0];
+  }
+
+  function goToNextDay() {
+    const date = new Date(selectedDate.value);
+    console.log(date)
+    date.setDate(date.getDate() + 1)
+    selectedDate.value = date.toISOString().split('T')[0];
+  }
+
+  watch(selectedDate, (value) => {
+    selectedDateMobile.value = value;
     getGames()
     updateYesterdayReport()
   })
@@ -141,8 +155,12 @@
     }
   }
 
-  function getImageUrl(team) {
+  function getTeamImageUrl(team) {
     return new URL(`./assets/${team.abbreviation}/logo.svg`, import.meta.url).href;
+  }
+
+  function createAssetUrl(assetPath) {
+    return new URL(`./assets/${assetPath}`, import.meta.url).href;
   }
 
   function formatISOTo24HourTime(date) {
@@ -255,9 +273,25 @@
         <div class="lg:col-span-2 space-y-6">
           <div class="h-20 md:flex hidden justify-between items-center w-full bg-white px-6 py-4 shadow-md">
             <h4 class="text-2xl uppercase">Games</h4>
-            <h4 class="text-2xl">
-              {{ selectedDate }}
-            </h4>
+            <div class="flex justify-between items-center space-x-3 select-none">
+              <span class="underline hover:scale-110 transition-all cursor-pointer hover:underline-offset-1 rotate-90"
+                @click="goToPreviousDay">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500 hover:text-blue-500 transition"
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </span>
+              <h4 class="text-2xl">
+                {{ selectedDate }}
+              </h4>
+              <span class="underline hover:scale-110 transition-all cursor-pointer hover:underline-offset-1 -rotate-90"
+                @click="goToNextDay">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-500 hover:text-blue-500 transition"
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </span>
+            </div>
             <div class="relative w-14">
               <!-- Button wrapping the entire input area for click anywhere functionality -->
               <button @click="toggleDatePicker"
@@ -288,9 +322,12 @@
               You got <strong>{{ yesterdayReport.correct }}</strong> out of <strong>{{ yesterdayReport.total }}</strong>
               picks correct from last night!
             </p>
-            <p class="text-green-600 text-md" v-if="yesterdayReport.accuracy >= 70">That is a very impressive {{ yesterdayReport.accuracy }}% ! Keep it up!</p>
-            <p class="text-yellow-600 text-md" v-if="yesterdayReport.accuracy < 70 && yesterdayReport.accuracy >= 40">That is a decent  {{ yesterdayReport.accuracy }}% ! Let's try to do better tomorrow!</p>
-            <p class="text-red-600 text-md" v-if="yesterdayReport.accuracy < 40">Uh-oh! That is a sub-par {{ yesterdayReport.accuracy }}% ! One off day doesn't define you, let's try again tomorrow!</p>
+            <p class="text-green-600 text-md" v-if="yesterdayReport.accuracy >= 70">That is a very impressive {{
+              yesterdayReport.accuracy }}% ! Keep it up!</p>
+            <p class="text-yellow-600 text-md" v-if="yesterdayReport.accuracy < 70 && yesterdayReport.accuracy >= 40">
+              That is a decent {{ yesterdayReport.accuracy }}% ! Let's try to do better tomorrow!</p>
+            <p class="text-red-600 text-md" v-if="yesterdayReport.accuracy < 40">Uh-oh! That is a sub-par {{
+              yesterdayReport.accuracy }}% ! One off day doesn't define you, let's try again tomorrow!</p>
           </div>
 
           <!-- Game Cards -->
@@ -310,7 +347,7 @@
                 :class="['w-full md:w-1/2 flex justify-between items-center p-4 rounded-lg shadow-sm', getClass(game, game.away_team)]"
                 @click="submitPick(game, game.away_team.id)">
                 <div class="flex items-center space-x-3">
-                  <img :src="getImageUrl(game.away_team)" alt="away-logo" class="w-20 h-20 object-contain " />
+                  <img :src="getTeamImageUrl(game.away_team)" alt="away-logo" class="w-20 h-20 object-contain" />
                   <div class="flex flex-col">
                     <p class="font-semibold text-lg text-gray-800">{{ game.away_team.name }}</p>
                     <p class="text-gray-500 text-xs">away team</p>
@@ -324,7 +361,7 @@
                 :class="['w-full md:w-1/2 flex justify-between items-center p-4 rounded-lg shadow-sm', getClass(game, game.home_team)]"
                 @click="submitPick(game, game.home_team.id)">
                 <div class="flex items-center space-x-3">
-                  <img :src="getImageUrl(game.home_team)" alt="home-logo" class="w-20 h-20 object-contain" />
+                  <img :src="getTeamImageUrl(game.home_team)" alt="home-logo" class="w-20 h-20 object-contain" />
                   <div class="flex flex-col">
                     <p class="font-semibold text-lg text-gray-800">{{ game.home_team.name }}</p>
                     <p class="text-gray-500 text-xs">home team</p>
@@ -342,7 +379,14 @@
               </p>
             </div>
           </div>
-          <div class="bg-white w-full rounded shadow-md py-20 px-4 flex justify-center" v-if="!games.length">
+          <div class="bg-white w-full rounded-xl shadow-md py-20 px-4 flex flex-col items-center justify-center"
+            v-if="!games.length">
+            <div v-if="selectedDate === '2024-11-05'"
+              class="border-dashed border-2 rounded-lg hover:border-dotted hover:scale-110 transition-all border-gray-600 mb-6 -mt-10 p-6 flex flex-col items-center">
+              <p class="text-2xl font-bold text-blue-600">ELECTION</p>
+              <p class="text-2xl font-bold text-red-600">DAY</p>
+              <img :src="createAssetUrl('donut_election.avif')" alt="" class="rounded-lg shadow-sm ">
+            </div>
             <p class="text-2xl font-light uppercase">No games scheduled</p>
           </div>
         </div>
