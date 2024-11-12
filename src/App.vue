@@ -27,7 +27,7 @@
 
   function sortByAccuracy() {
     leaderboard.value = leaderboard.value.sort((a, b) => {
-      return (b.points * 100 / b.totalPicks).toPrecision(2) - (a.points * 100 / a.totalPicks).toPrecision(2);
+      return (b.points * 100 / b.totalPicks).toPrecision(3) - (a.points * 100 / a.totalPicks).toPrecision(3);
     })
   }
 
@@ -72,10 +72,11 @@
   }
 
   async function getUsers() {
-    let { data } = await supabase.from('profiles').select('id, full_name,picks(id,correct,game_date:games(date))')
+    let { data } = await supabase.from('profiles').select('id,avatar_url,full_name,picks(id,correct,game_date:games(date))')
     users.value = data.map(u => ({ ...u, 'picks': u.picks.map(p => ({ ...p, 'game_date': p.game_date.date })) }))
     leaderboard.value = data.map(user => ({
       name: user.full_name,
+      avatar_url: user.avatar_url,
       points: user.picks.filter(p => p.correct).length,
       totalPicks: user.picks.filter(p => p.correct !== null).length
     }))
@@ -89,7 +90,7 @@
       yesterdayReport.value = {
         correct: correct,
         total: picksFromYesterady.length,
-        accuracy: (correct * 100 / picksFromYesterady.length).toPrecision(2)
+        accuracy: (correct * 100 / picksFromYesterady.length).toPrecision(3)
       }
     } else {
       yesterdayReport.value = null
@@ -127,6 +128,16 @@
   onMounted(async () => {
     init()
   })
+
+  async function impersonate() {
+    // use to log in as one of your users -> use edge function create-impersonate-link to create the auth link
+    const { searchParams } = new URL(window.location.href)
+    const token_hash = searchParams.get('token_hash')
+    if (token_hash) {
+      await supabase.auth.verifyOtp({ type: "magiclink", token_hash })
+      // add redirect
+    }
+  }
 
   async function init() {
     allowPastVotes.value = import.meta.env.VITE_ALLOW_PAST_VOTES === 'true';
@@ -431,13 +442,16 @@
                 </thead>
                 <tbody>
                   <tr v-for="user in leaderboard" :key="user.id"
-                    class="even:bg-gray-50 border-b last:border-0 transform transition duration-100 text-md md:text-lg">
-                    <td class="px-4 py-2">{{ user.name }}</td>
+                    class="even:bg-gray-50 p-8 border-b last:border-0 transform transition duration-100 text-md md:text-lg">
+                    <td class="px-4 py-6 flex items-center gap-2">
+                      <img :src="user.avatar_url" alt="" class="rounded-full w-6 h-6">
+                      {{ user.name }}
+                    </td>
                     <td class="px-4 py-2 font-bold">{{ user.points }} <span class="text-gray-500 font-light">({{
                       user.totalPicks
                         }})</span>
                     </td>
-                    <td class="px-4 py-2 text-gray-500">{{ (user.points * 100 / user.totalPicks).toPrecision(2) }}%</td>
+                    <td class="px-4 py-2 text-gray-500">{{ (user.points * 100 / user.totalPicks).toPrecision(3) }}%</td>
                   </tr>
                 </tbody>
               </table>
