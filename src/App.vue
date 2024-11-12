@@ -75,6 +75,7 @@
     let { data } = await supabase.from('profiles').select('id,avatar_url,full_name,picks(id,correct,game_date:games(date))')
     users.value = data.map(u => ({ ...u, 'picks': u.picks.map(p => ({ ...p, 'game_date': p.game_date.date })) }))
     leaderboard.value = data.map(user => ({
+      id: user.id,
       name: user.full_name,
       avatar_url: user.avatar_url,
       points: user.picks.filter(p => p.correct).length,
@@ -441,7 +442,8 @@
                 </thead>
                 <tbody>
                   <tr v-for="user in leaderboard" :key="user.id"
-                    class="even:bg-gray-50 p-8 border-b last:border-0 transform transition duration-100 text-md md:text-lg">
+                    class="p-8 border-b last:border-0 transform transition duration-100 text-md md:text-lg"
+                    :class="{ ' bg-gray-50': user.id === userId }">
                     <td class="px-4 py-6 flex items-center gap-2">
                       <img :src="user.avatar_url" alt="" class="rounded-full w-6 h-6">
                       {{ user.name }}
