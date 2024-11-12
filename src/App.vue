@@ -201,7 +201,6 @@
       return;
     }
     if (!allowPastVotes.value && !isValidDate(game.status)) {
-      alert('This game is already in progress or over, you cannot vote anymore :)')
       return;
     }
     const toUpsert = { game_id: game.id, picked_team: picked_team_id, user_id: userId.value };
