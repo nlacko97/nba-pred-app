@@ -1,9 +1,14 @@
   <script setup>
   import { ref, onMounted, watch } from 'vue'
+  // import { useRoute } from 'vue-router'
 
   import { supabase } from './lib/supabaseClient'
 
+  // const route = useRoute()
+
   const games = ref([])
+
+  const injuries = ref()
 
   const session = ref()
 
@@ -12,6 +17,7 @@
   const users = ref()
 
   const selectedDate = ref(new Date().toISOString().split('T')[0]); // Sets today's date by default
+  // const selectedDate = ref('2024-11-13'); // Sets today's date by default
 
   const selectedDateMobile = ref(new Date().toISOString().split('T')[0]); // Sets today's date by default
 
@@ -22,6 +28,10 @@
   const allowPastVotes = ref(false)
 
   const yesterdayReport = ref()
+
+  const loading = ref(false)
+
+  const nbaCupGroupDates = ['2024-11-12', '2024-11-15', '2024-11-19', '2024-11-22', '2024-11-26', '2024-11-29', '2024-12-03']
 
   window.handleSignInWithGoogle = handleSignInWithGoogle
 
@@ -46,7 +56,6 @@
 
   function goToNextDay() {
     const date = new Date(selectedDate.value);
-    console.log(date)
     date.setDate(date.getDate() + 1)
     selectedDate.value = date.toISOString().split('T')[0];
   }
@@ -63,6 +72,17 @@
 
   watch(selectedDateMobile, (value) => {
     selectedDate.value = value;
+  })
+
+  watch(injuries, () => {
+    games.value = games.value.map(game => {
+      if (isValidDate(game.status)) {
+        game.home_team.injuries = injuries.value.filter(i => i.team === game.home_team.abbreviation).map(i => ({ playerName: i.player, injury: i.injury, position: i.position, status: i.status }))
+        game.away_team.injuries = injuries.value.filter(i => i.team === game.away_team.abbreviation).map(i => ({ playerName: i.player, injury: i.injury, position: i.position, status: i.status }))
+      }
+
+      return game;
+    })
   })
 
   function formatYesterdayToDateString() {
@@ -103,6 +123,8 @@
   };
 
   async function getGames() {
+    loading.value = true;
+    // await new Promise(r => setTimeout(r, 2000));
     let { data } = await supabase.from('games')
       .select('\
       *, \
@@ -115,15 +137,84 @@
       .order('date', { ascending: true })
       .order('status');
 
+
+    const { data: teamGames, error: teamError } = await supabase
+      .from('games')
+      .select(`
+      home_team_id,
+      away_team_id,
+      home_team_score,
+      away_team_score
+    `)
+      .eq('status', 'Final').order('date', { ascending: true });
+
+    const teamRecords = {};
+    teamGames.forEach(game => {
+
+      const { home_team_id, away_team_id, home_team_score, away_team_score } = game;
+
+      if (!teamRecords[home_team_id]) teamRecords[home_team_id] = { wins: 0, losses: 0, record: [] };
+      if (!teamRecords[away_team_id]) teamRecords[away_team_id] = { wins: 0, losses: 0, record: [] };
+
+      if (home_team_score > away_team_score) {
+        teamRecords[home_team_id].wins += 1;
+        teamRecords[away_team_id].losses += 1;
+        teamRecords[home_team_id].record.push('W');
+        teamRecords[away_team_id].record.push('L');
+      } else if (away_team_score > home_team_score) {
+        teamRecords[away_team_id].wins += 1;
+        teamRecords[home_team_id].losses += 1;
+        teamRecords[away_team_id].record.push('W');
+        teamRecords[home_team_id].record.push('L');
+      }
+    });
+
     data = data.map(g => {
+      g.home_team.picks = g.picks.reduce((acc, pick) => {
+        if (pick.picked_team === g.home_team.id) {
+          acc[pick.user_id] = pick;
+        }
+        return acc;
+      }, {})
+      g.away_team.picks = g.picks.reduce((acc, pick) => {
+        if (pick.picked_team === g.away_team.id) {
+          acc[pick.user_id] = pick;
+        }
+        return acc;
+      }, {})
       g.picks = g.picks.reduce((acc, pick) => {
         acc[pick.user_id] = pick;
         return acc;
       }, {});
 
+
+      g.home_team.wins = teamRecords[g.home_team.id].wins || 0
+      g.home_team.losses = teamRecords[g.home_team.id].losses || 0
+      g.away_team.wins = teamRecords[g.away_team.id].wins || 0
+      g.away_team.losses = teamRecords[g.away_team.id].losses || 0
+      g.home_team.record = teamRecords[g.home_team.id].record.slice(-5) || []
+      g.away_team.record = teamRecords[g.away_team.id].record.slice(-5) || []
+      if (isValidDate(g.status)) {
+        g.home_team.injuries = injuries.value?.filter(i => i.team === g.home_team.abbreviation).map(i => ({ playerName: i.player, injury: i.injury, position: i.position, status: i.status }))
+        g.away_team.injuries = injuries.value?.filter(i => i.team === g.away_team.abbreviation).map(i => ({ playerName: i.player, injury: i.injury, position: i.position, status: i.status }))
+      }
+
       return g;
     });
     games.value = data;
+    loading.value = false;
+
+    // SCOREBOARD GROUNDWORK
+    // if (selectedDate.value === formatYesterdayToDateString()) {
+    //   console.log('making request')
+    //   const scoreboardR = await fetch('https://corsproxy.io/?https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json');
+    //   const scoreboard = await scoreboardR.json()
+
+    //   games.value = games.value.map(game => {
+    //     game.scoreboard = scoreboard.scoreboard.games.find(g => g.awayTeam.teamName === game.away_team.name && g.homeTeam.teamName === game.home_team.name)
+    //     return game;
+    //   })
+    // }
   }
 
   onMounted(async () => {
@@ -144,6 +235,7 @@
     allowPastVotes.value = import.meta.env.VITE_ALLOW_PAST_VOTES === 'true';
     getUsers()
     getGames()
+    getInjuryReport()
 
     const { data } = await supabase.auth.getSession();
     session.value = data.session;
@@ -151,6 +243,13 @@
     if (session.value) {
       userId.value = session.value.user.id;
     } else { userId.value = null }
+  }
+
+  async function getInjuryReport() {
+    console.log('making request to injuries')
+    const injuriesApiUrl = `${import.meta.env.VITE_APP_ENV === 'local' ? 'https://corsproxy.io/?' : ''}https://www.rotowire.com/basketball/tables/injury-report.php?team=ALL&pos=ALL`
+    const injuriesResponse = await fetch(injuriesApiUrl);
+    injuries.value = await injuriesResponse.json()
   }
 
   async function handleSignInWithGoogle(response) {
@@ -277,7 +376,7 @@
   <template>
 
 
-    <div class="min-h-screen bg-gray-50 p-6 flex justify-between">
+    <div class="min-h-screen bg-gray-50 p-6 flex justify-between transition-all">
       <div class="container mx-auto grid grid-cols-1 lg:grid-cols-3 gap-20">
 
         <!-- Left Column: Date Picker and Game Cards -->
@@ -326,12 +425,297 @@
               class="p-2 border rounded-lg text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-300" />
           </div>
 
+          <div v-if="nbaCupGroupDates.includes(selectedDate)"
+            class="rounded-lg transition-all border-gray-600 mb-6flex flex-col items-center">
+            <img :src="createAssetUrl('image002.webp')" alt="" class="rounded-lg shadow-sm ">
+          </div>
+
+          <div v-if="loading" class="flex items-center justify-center">
+            <svg class="animate-spin h-8 w-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none"
+              viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+            </svg>
+          </div>
+
+          <div v-else>
+
+            <!-- Game Cards -->
+            <div v-for="(game, index) in games" :key="index"
+              class="bg-white rounded-xl shadow-md overflow-hidden transform transition duration-100">
+              <!-- Game Header -->
+              <div class="flex justify-between items-center bg-gray-100 px-6 py-3 border-b border-gray-200">
+                <p class="text-xs font-medium text-gray-500">{{ game.date }}</p>
+                <p class="text-xs font-semibold text-red-500 uppercase tracking-wide">{{ getStatus(game) }}</p>
+              </div>
+
+              <!-- Teams Section -->
+              <div
+                class="flex flex-col md:flex-row items-center md:items-start px-6 py-6 space-y-4 md:space-y-0 md:space-x-4">
+                <!-- Away Team -->
+                <div
+                  :class="['w-full md:w-1/2 flex justify-between items-center p-4 rounded-lg shadow-sm ', getClass(game, game.away_team)]"
+                  @click="submitPick(game, game.away_team.id)">
+                  <div class="flex items-center space-x-3">
+                    <img :src="getTeamImageUrl(game.away_team)" alt="away-logo" class="w-20 h-20 object-contain" />
+                    <div class="flex flex-col">
+                      <p class="font-semibold text-lg text-gray-800">{{ game.away_team.name }} <span
+                          class="text-sm font-medium">
+                          ({{ game.away_team.wins }} - {{ game.away_team.losses }})
+                        </span>
+                      </p>
+                      <p class="text-gray-500 text-xs">away team</p>
+                      <p class="text-xs flex items-center gap-3 font-semibold mt-2">
+                        <span v-for="(wl, index) in game.away_team.record" :key="index"
+                          :class="{ 'text-red-600': wl === 'L', 'text-green-600': wl === 'W' }">{{ wl }}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <p class="ml-auto font-extrabold text-2xl text-gray-700">{{ game.away_team_score }}</p>
+                </div>
+
+                <!-- Home Team -->
+                <div
+                  :class="['w-full md:w-1/2 flex justify-between items-center p-4 rounded-lg shadow-sm', getClass(game, game.home_team)]"
+                  @click="submitPick(game, game.home_team.id)">
+                  <div class="flex items-center space-x-3">
+                    <img :src="getTeamImageUrl(game.home_team)" alt="home-logo" class="w-20 h-20 object-contain" />
+                    <div class="flex flex-col">
+                      <p class="font-semibold text-lg text-gray-800">{{ game.home_team.name }} <span
+                          class="text-sm font-medium">
+                          ({{ game.home_team.wins }} - {{ game.home_team.losses }})
+                        </span>
+                      </p>
+                      <p class="text-gray-500 text-xs">home team</p>
+                      <p class="text-gray-500 text-xs"></p>
+                      <p class="text-xs flex items-center gap-3 font-semibold mt-2">
+                        <span v-for="(wl, index) in game.home_team.record" :key="index"
+                          :class="{ 'text-red-600': wl === 'L', 'text-green-600': wl === 'W' }">{{ wl }}</span>
+                      </p>
+                    </div>
+                  </div>
+                  <p class="ml-auto font-extrabold text-2xl text-gray-700">{{ game.home_team_score }}</p>
+                </div>
+              </div>
+
+              <!-- Team Leaders Section -->
+              <!-- <div class="grid grid-cols-2 gap-4 -mt-4 mb-2 px-6" v-if="game.scoreboard"> -->
+                <!-- Team 1 Leader -->
+                <!-- <div class="bg-gray-50 p-4 rounded-xl shadow-sm border-t-2 border-gray-600">
+                  <p class="text-gray-800 font-semibold text-center">{{ game.scoreboard.gameLeaders.awayLeaders.name }}
+                  </p>
+                  <div class="flex justify-between mt-2 text-gray-600">
+                    <span class="font-bold text-gray-800">{{ game.scoreboard.gameLeaders.awayLeaders.rebounds }} <span
+                        class="text-sm uppercase font-normal">REB</span></span>
+                    <span class="font-bold text-gray-800">{{ game.scoreboard.gameLeaders.awayLeaders.points }} <span
+                        class="text-sm uppercase font-normal">PTS</span></span>
+                    <span class="font-bold text-gray-800">{{ game.scoreboard.gameLeaders.awayLeaders.assists }} <span
+                        class="text-sm uppercase font-normal">AST</span></span>
+                  </div>
+                </div> -->
+
+                <!-- Team 2 Leader -->
+                <!-- <div class="bg-gray-50 p-4 rounded-xl shadow-sm border-t-2 border-gray-600">
+                  <p class="text-gray-800 font-semibold text-center">{{ game.scoreboard.gameLeaders.homeLeaders.name }}
+                  </p>
+                  <div class="flex justify-between mt-2 text-gray-600">
+                    <span class="font-bold text-gray-800">{{ game.scoreboard.gameLeaders.homeLeaders.rebounds }} <span
+                        class="text-sm uppercase font-normal">REB</span></span>
+                    <span class="font-bold text-gray-800">{{ game.scoreboard.gameLeaders.homeLeaders.points }} <span
+                        class="text-sm uppercase font-normal">PTS</span></span>
+                    <span class="font-bold text-gray-800">{{ game.scoreboard.gameLeaders.homeLeaders.assists }} <span
+                        class="text-sm uppercase font-normal">AST</span></span>
+                  </div>
+                </div>
+              </div> -->
+
+              <!-- User Picks -->
+              <div
+                class="px-4 py-2 bg-gray-100 text-sm text-gray-700 border-t border-gray-200 flex flex-col md:flex-row"
+                v-show="game.status === 'Final'">
+                <div class="w-full md:w-1/2 mb-4 md:mb-0 pl-4 text-xs">
+                  <div class="overflow-x-auto">
+                    <table class="w-full table-fixed text-left border-collapse">
+                      <thead>
+                        <tr class="bg-gray-100">
+                          <th class="px-4 py-2 text-gray-600 font-medium">Voted for {{ game.away_team.name }}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr class="border-t" v-for="(pick, index) in game.away_team.picks" :key="index">
+                          <td class="px-4 py-2 text-gray-800">{{ pick.user.full_name }}</td>
+                          <td class="px-4 py-2 flex justify-end opacity-70">
+                            <span v-if="pick.correct">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="12" cy="12" r="12" fill="#34D399" />
+                                <path d="M8 12.5L10.5 15L16 9" stroke="white" stroke-width="2" stroke-linecap="round"
+                                  stroke-linejoin="round" />
+                              </svg>
+                            </span>
+                            <span v-else>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="12" cy="12" r="12" fill="#F87171" />
+                                <path d="M9 9L15 15M15 9L9 15" stroke="white" stroke-width="2" stroke-linecap="round"
+                                  stroke-linejoin="round" />
+                              </svg>
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div class="w-full md:w-1/2 mb-4 md:mb-0 pl-4 text-xs">
+                  <div class="overflow-x-auto">
+                    <table class="w-full table-fixed text-left border-collapse">
+                      <thead>
+                        <tr class="bg-gray-100">
+                          <th class="px-4 py-2 text-gray-600 font-medium">Voted for {{ game.home_team.name }}</th>
+                        </tr>
+                        <tr></tr>
+                      </thead>
+                      <tbody>
+                        <tr class="border-t" v-for="(pick, index) in game.home_team.picks" :key="index">
+                          <td class="px-4 py-2 text-gray-800">{{ pick.user.full_name }}</td>
+                          <td class="px-4 py-2 flex justify-end opacity-70">
+                            <span v-if="pick.correct">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="12" cy="12" r="12" fill="#34D399" />
+                                <path d="M8 12.5L10.5 15L16 9" stroke="white" stroke-width="2" stroke-linecap="round"
+                                  stroke-linejoin="round" />
+                              </svg>
+                            </span>
+                            <span v-else>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="12" cy="12" r="12" fill="#F87171" />
+                                <path d="M9 9L15 15M15 9L9 15" stroke="white" stroke-width="2" stroke-linecap="round"
+                                  stroke-linejoin="round" />
+                              </svg>
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+              <!-- Injury Report -->
+              <div
+                class="px-4 py-2 bg-gray-100 text-sm text-gray-700 border-t border-gray-200 flex flex-col md:flex-row"
+                v-show="isValidDate(game.status)">
+                <div class="w-full md:w-1/2 mb-4 md:mb-0 pl-4 text-xs">
+                  <div class="overflow-x-auto">
+                    <table class="w-full table-fixed text-left border-collapse">
+                      <thead>
+                        <tr class="bg-gray-100">
+                          <th class="px-4 py-2 text-gray-600 font-medium">Player</th>
+                          <th class="px-4 py-2 text-gray-600 font-medium">Injury</th>
+                          <th class="px-4 py-2 text-gray-600 font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr class="border-t" v-for="(injury, index) in game.away_team.injuries" :key="index">
+                          <td class="px-4 py-2 text-gray-800">{{ injury.playerName }}</td>
+                          <td class="px-4 py-2 text-gray-500">{{ injury.injury }}</td>
+                          <td class="px-4 py-2 "
+                            :class="{ 'text-red-500': injury.status.includes('Out'), 'text-yellow-500': !injury.status.includes('Out') }">
+                            <span class="hidden md:block">
+                              {{ injury.status }}
+                            </span>
+                            <span class="md:hidden opacity-80">
+                              <span v-if="injury.status === 'Out'">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"
+                                  xmlns="http://www.w3.org/2000/svg">
+                                  <circle cx="12" cy="12" r="11" stroke="currentColor" stroke-width="2" />
+                                </svg>
+
+                              </span>
+                              <span v-else>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentCOlor"
+                                  xmlns="http://www.w3.org/2000/svg">
+                                  <circle cx="12" cy="12" r="11" stroke="currentColor" stroke-width="2" />
+                                </svg>
+                              </span>
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div class="w-full md:w-1/2 pl-4 text-xs">
+                  <div class="overflow-x-auto">
+                    <table class="w-full table-fixed text-left border-collapse">
+                      <thead>
+                        <tr class="bg-gray-100">
+                          <th class="px-4 py-2 text-gray-600 font-medium">Player</th>
+                          <th class="px-4 py-2 text-gray-600 font-medium">Injury</th>
+                          <th class="px-4 py-2 text-gray-600 font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr class="border-t" v-for="(injury, index) in game.home_team.injuries" :key="index">
+                          <td class="px-4 py-2 text-gray-800">{{ injury.playerName }}</td>
+                          <td class="px-4 py-2 text-gray-500">{{ injury.injury }}</td>
+                          <td class="px-4 py-2 "
+                            :class="{ 'text-red-500': injury.status.includes('Out'), 'text-yellow-500': !injury.status.includes('Out') }">
+                            <span class="hidden md:block">
+                              {{ injury.status }}
+                            </span>
+                            <span class="md:hidden opacity-80">
+                              <span v-if="injury.status.includes('Out')">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"
+                                  xmlns="http://www.w3.org/2000/svg">
+                                  <circle cx="12" cy="12" r="11" stroke="currentColor" stroke-width="2" />
+                                </svg>
+
+                              </span>
+                              <span v-else>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentCOlor"
+                                  xmlns="http://www.w3.org/2000/svg">
+                                  <circle cx="12" cy="12" r="11" stroke="currentColor" stroke-width="2" />
+                                </svg>
+                              </span>
+                            </span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="bg-white w-full rounded-xl shadow-md py-20 px-4 flex flex-col items-center justify-center"
+              v-if="!games.length">
+              <div v-if="selectedDate === '2024-11-05'"
+                class="border-dashed border-2 rounded-lg hover:border-dotted hover:scale-110 transition-all border-gray-600 mb-6 -mt-10 p-6 flex flex-col items-center">
+                <p class="text-2xl font-bold text-blue-600">ELECTION</p>
+                <p class="text-2xl font-bold text-red-600">DAY</p>
+                <img :src="createAssetUrl('donut_election.avif')" alt="" class="rounded-lg shadow-sm ">
+              </div>
+              <p class="text-2xl font-light uppercase">No games scheduled</p>
+            </div>
+          </div>
+        </div>
+
+
+
+        <!-- Right Column: Leaderboard Table -->
+        <div class="bg-gray-50">
+          <div class="flex h-20 justify-center items-center w-full bg-white px-6 py-4 shadow-md mb-4">
+            <h4 class="text-2xl uppercase">Leaderboard</h4>
+          </div>
           <div
-            class="bg-white rounded-xl shadow-md px-4 py-6 font-thin text-lg flex flex-col justify-center items-center leading-relaxed"
+            class="bg-white mb-4 rounded-xl shadow-md px-4 py-6 font-thin text-lg flex flex-col justify-center items-center leading-relaxed"
             v-if="yesterdayReport">
             <p>
               You got <strong>{{ yesterdayReport.correct }}</strong> out of <strong>{{ yesterdayReport.total }}</strong>
-              picks correct from last night!
+              picks correct from <span class="hover:underline cursor-pointer text-blue-500"
+                @click="selectedDate = formatYesterdayToDateString()">last night!</span>
             </p>
             <p class="text-green-600 text-md" v-if="yesterdayReport.accuracy >= 70">That is a very impressive {{
               yesterdayReport.accuracy }}% ! Keep it up!</p>
@@ -339,74 +723,6 @@
               That is a decent {{ yesterdayReport.accuracy }}% ! Let's try to do better tomorrow!</p>
             <p class="text-red-600 text-md" v-if="yesterdayReport.accuracy < 40">Uh-oh! That is a sub-par {{
               yesterdayReport.accuracy }}% ! One off day doesn't define you, let's try again tomorrow!</p>
-          </div>
-
-          <!-- Game Cards -->
-          <div v-for="(game, index) in games" :key="index"
-            class="bg-white rounded-xl shadow-md overflow-hidden transform transition duration-100">
-            <!-- Game Header -->
-            <div class="flex justify-between items-center bg-gray-100 px-6 py-3 border-b border-gray-200">
-              <p class="text-xs font-medium text-gray-500">{{ game.date }}</p>
-              <p class="text-xs font-semibold text-red-500 uppercase tracking-wide">{{ getStatus(game) }}</p>
-            </div>
-
-            <!-- Teams Section -->
-            <div
-              class="flex flex-col md:flex-row items-center md:items-start px-6 py-6 space-y-4 md:space-y-0 md:space-x-4">
-              <!-- Away Team -->
-              <div
-                :class="['w-full md:w-1/2 flex justify-between items-center p-4 rounded-lg shadow-sm', getClass(game, game.away_team)]"
-                @click="submitPick(game, game.away_team.id)">
-                <div class="flex items-center space-x-3">
-                  <img :src="getTeamImageUrl(game.away_team)" alt="away-logo" class="w-20 h-20 object-contain" />
-                  <div class="flex flex-col">
-                    <p class="font-semibold text-lg text-gray-800">{{ game.away_team.name }}</p>
-                    <p class="text-gray-500 text-xs">away team</p>
-                  </div>
-                </div>
-                <p class="ml-auto font-extrabold text-2xl text-gray-700">{{ game.away_team_score }}</p>
-              </div>
-
-              <!-- Home Team -->
-              <div
-                :class="['w-full md:w-1/2 flex justify-between items-center p-4 rounded-lg shadow-sm', getClass(game, game.home_team)]"
-                @click="submitPick(game, game.home_team.id)">
-                <div class="flex items-center space-x-3">
-                  <img :src="getTeamImageUrl(game.home_team)" alt="home-logo" class="w-20 h-20 object-contain" />
-                  <div class="flex flex-col">
-                    <p class="font-semibold text-lg text-gray-800">{{ game.home_team.name }}</p>
-                    <p class="text-gray-500 text-xs">home team</p>
-                  </div>
-                </div>
-                <p class="ml-auto font-extrabold text-2xl text-gray-700">{{ game.home_team_score }}</p>
-              </div>
-            </div>
-
-            <!-- User Pick -->
-            <div class="px-4 py-2 bg-gray-100 text-sm text-gray-700 border-t border-gray-200"
-              v-show="game.status === 'Final'">
-              <p v-for="(pick, index) in game.picks" :key="index">
-                <b>{{ pick.user.full_name }}</b> voted for <b>{{ pick.picked_team_name.name }}</b>
-              </p>
-            </div>
-          </div>
-          <div class="bg-white w-full rounded-xl shadow-md py-20 px-4 flex flex-col items-center justify-center"
-            v-if="!games.length">
-            <div v-if="selectedDate === '2024-11-05'"
-              class="border-dashed border-2 rounded-lg hover:border-dotted hover:scale-110 transition-all border-gray-600 mb-6 -mt-10 p-6 flex flex-col items-center">
-              <p class="text-2xl font-bold text-blue-600">ELECTION</p>
-              <p class="text-2xl font-bold text-red-600">DAY</p>
-              <img :src="createAssetUrl('donut_election.avif')" alt="" class="rounded-lg shadow-sm ">
-            </div>
-            <p class="text-2xl font-light uppercase">No games scheduled</p>
-          </div>
-        </div>
-
-
-        <!-- Right Column: Leaderboard Table -->
-        <div class="bg-gray-50">
-          <div class="flex h-20 justify-center items-center w-full bg-white px-6 py-4 shadow-md mb-4">
-            <h4 class="text-2xl uppercase">Leaderboard</h4>
           </div>
           <div v-if="session">
             <div class="bg-white shadow-md rounded pb-40 overflow-hidden">
@@ -452,7 +768,8 @@
                       user.totalPicks
                         }})</span>
                     </td>
-                    <td class="px-4 py-2 text-gray-500">{{ (user.points * 100 / user.totalPicks).toPrecision(3) }}%</td>
+                    <td class="px-4 py-2 text-gray-500">{{ (user.points * 100 / user.totalPicks).toPrecision(3) }}%
+                    </td>
                   </tr>
                 </tbody>
               </table>
