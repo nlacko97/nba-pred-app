@@ -246,8 +246,9 @@
   }
 
   async function getInjuryReport() {
-    console.log('making request to injuries')
-    const injuriesApiUrl = `${import.meta.env.VITE_APP_ENV === 'local' ? 'https://corsproxy.io/?' : ''}https://www.rotowire.com/basketball/tables/injury-report.php?team=ALL&pos=ALL`
+    // console.log('making request to injuries')
+    // const injuriesApiUrl = `${import.meta.env.VITE_APP_ENV === 'local' ? 'https://corsproxy.io/?' : ''}https://www.rotowire.com/basketball/tables/injury-report.php?team=ALL&pos=ALL`
+    const injuriesApiUrl = `https://corsproxy.io/?https://www.rotowire.com/basketball/tables/injury-report.php?team=ALL&pos=ALL`
     const injuriesResponse = await fetch(injuriesApiUrl);
     injuries.value = await injuriesResponse.json()
   }
@@ -442,7 +443,7 @@
 
             <!-- Game Cards -->
             <div v-for="(game, index) in games" :key="index"
-              class="bg-white rounded-xl shadow-md overflow-hidden transform transition duration-100">
+              class="bg-white rounded-xl shadow-md overflow-hidden transform transition duration-100 mb-6">
               <!-- Game Header -->
               <div class="flex justify-between items-center bg-gray-100 px-6 py-3 border-b border-gray-200">
                 <p class="text-xs font-medium text-gray-500">{{ game.date }}</p>
@@ -500,8 +501,8 @@
 
               <!-- Team Leaders Section -->
               <!-- <div class="grid grid-cols-2 gap-4 -mt-4 mb-2 px-6" v-if="game.scoreboard"> -->
-                <!-- Team 1 Leader -->
-                <!-- <div class="bg-gray-50 p-4 rounded-xl shadow-sm border-t-2 border-gray-600">
+              <!-- Team 1 Leader -->
+              <!-- <div class="bg-gray-50 p-4 rounded-xl shadow-sm border-t-2 border-gray-600">
                   <p class="text-gray-800 font-semibold text-center">{{ game.scoreboard.gameLeaders.awayLeaders.name }}
                   </p>
                   <div class="flex justify-between mt-2 text-gray-600">
@@ -514,8 +515,8 @@
                   </div>
                 </div> -->
 
-                <!-- Team 2 Leader -->
-                <!-- <div class="bg-gray-50 p-4 rounded-xl shadow-sm border-t-2 border-gray-600">
+              <!-- Team 2 Leader -->
+              <!-- <div class="bg-gray-50 p-4 rounded-xl shadow-sm border-t-2 border-gray-600">
                   <p class="text-gray-800 font-semibold text-center">{{ game.scoreboard.gameLeaders.homeLeaders.name }}
                   </p>
                   <div class="flex justify-between mt-2 text-gray-600">
