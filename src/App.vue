@@ -33,6 +33,8 @@
 
   const nbaCupGroupDates = ['2024-11-12', '2024-11-15', '2024-11-19', '2024-11-22', '2024-11-26', '2024-11-29', '2024-12-03']
 
+  const circleCircumference = 2 * Math.PI * 25;
+
   window.handleSignInWithGoogle = handleSignInWithGoogle
 
   function sortByAccuracy() {
@@ -415,12 +417,8 @@
     return import.meta.env.VITE_GOOGLE_CLIENT_ID;
   }
 
-  function getCircleCircumference() {
-    const radius = 25; // Radius used in the SVG circle element
-    return 2 * Math.PI * radius; // Circumference formula
-  }
   function getStrokeOffset(accuracy) {
-    const circumference = this.getCircleCircumference();
+    const circumference = circleCircumference;
     return circumference * (1 - accuracy / 100);
   }
   function getAccuracyColorClass(accuracy) {
@@ -909,8 +907,7 @@
                       <!-- SVG Progress Circle -->
                       <svg class="w-full h-full" transform="rotate(-90)">
                         <circle cx="50%" cy="50%" r="25" stroke="lightgray" stroke-width="4" fill="none" />
-                        <circle cx="50%" cy="50%" r="25" stroke="currentColor"
-                          :stroke-dasharray="getCircleCircumference"
+                        <circle cx="50%" cy="50%" r="25" stroke="currentColor" :stroke-dasharray="circleCircumference"
                           :stroke-dashoffset="getStrokeOffset(user.accuracy)" stroke-width="4" fill="none"
                           :class="getAccuracyColorClass(user.accuracy)" class="transition-all duration-300" />
                       </svg>
