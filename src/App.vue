@@ -130,14 +130,19 @@
         return acc;
       }, {});
 
+      const points = user.picks.filter(p => p.correct).length;
+      const totalPicks = user.picks.filter(p => p.correct !== null).length;
+      const accuracy = (points * 100 / totalPicks).toFixed(1);
+
       return {
         id: user.id,
         name: user.full_name,
         avatar_url: user.avatar_url,
-        points: user.picks.filter(p => p.correct).length,
-        totalPicks: user.picks.filter(p => p.correct !== null).length,
+        points,
+        totalPicks,
         dailyAccuracy: dailyAccuracy,
-        latestDailyAccuracy
+        latestDailyAccuracy,
+        accuracy
       }
     })
     sortByPoints()
@@ -408,6 +413,20 @@
 
   function getGoogleClientId() {
     return import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  }
+
+  function getCircleCircumference() {
+    const radius = 25; // Radius used in the SVG circle element
+    return 2 * Math.PI * radius; // Circumference formula
+  }
+  function getStrokeOffset(accuracy) {
+    const circumference = this.getCircleCircumference();
+    return circumference * (1 - accuracy / 100);
+  }
+  function getAccuracyColorClass(accuracy) {
+    if (accuracy >= 70) return 'text-green-500';
+    if (accuracy >= 40) return 'text-yellow-500';
+    return 'text-red-500';
   }
 
 </script>
@@ -768,8 +787,8 @@
               yesterdayReport.accuracy }}% ! Now that's bad (and sad) 🤦‍♂️</p>
           </div>
           <div v-if="session">
-            <div class="bg-white shadow-md rounded pb-40 overflow-hidden">
-              <table class="w-full text-sm ">
+            <!-- <div class="bg-white shadow-md rounded pb-40 overflow-hidden"> -->
+            <!-- <table class="w-full text-sm ">
                 <thead>
                   <tr class="bg-gray-100 text-lg md:text-xl">
                     <th class="text-left px-4 py-2 text-gray-600 flex justify-between">
@@ -828,7 +847,6 @@
                         </div>
                       </div>
                       <div class="flex items-center gap-2 py-2">
-                        <!-- <p class="text-xs font-semibold hidden md:block">Last 5 days: </p> -->
                         <div v-for="(acc, index) in user.latestDailyAccuracy" :key="index"
                           class="text-xs hover:shadow cursor-default flex flex-col items-center justify-center px-2 py-0.5 rounded-lg font-bold bg-gray-50 border border-gray-200">
                           <p class="font-light">
@@ -843,7 +861,90 @@
                     </td>
                   </tr>
                 </tbody>
-              </table>
+              </table> -->
+            <!-- </div> -->
+
+            <div class="space-y-4 py-3">
+              <div v-for="(user, index) in leaderboard" :key="user.id"
+                class=" p-4 bg-white text-gray-900 flex items-start w-full rounded-lg shadow-md">
+
+                <!-- Left Section: Avatar and Medal -->
+                <div class="flex-shrink-0 relative mr-6 flex flex-col h-full justify-between items-center">
+                  <!-- Avatar Image -->
+                  <img :src="user.avatar_url" alt="User Avatar"
+                    class="w-12 h-12 rounded-full border border-gray-300 object-cover">
+
+                  <!-- Rank (Takes the full height of the left section) -->
+                  <div class="flex-grow flex items-center justify-center text-6xl text-gray-200 mt-4 font-extrabold">
+                    {{ index + 1 }}
+                  </div>
+
+                  <span v-if="index < 3" :class="{
+                    'absolute -top-2 -right-2 text-xs font-bold py-1 px-1.5 rounded-full flex items-center justify-center': true,
+                    'bg-yellow-200': index === 0,
+                    'bg-gray-200': index === 1,
+                    'bg-amber-500': index === 2
+                  }" class="text-white">
+                    {{ ['🥇', '🥈', '🥉'][index] }}
+                  </span>
+                </div>
+
+                <!-- User Information -->
+                <div class="flex-1">
+                  <h3 class="text-lg font-semibold">{{ user.name }}</h3>
+
+                  <!-- Points and Accuracy Circles -->
+                  <div class="flex items-center space-x-6 mt-4">
+                    <!-- Points Circle -->
+                    <div
+                      class="relative flex flex-col items-center justify-center w-14 h-14 rounded-full bg-blue-50 text-blue-600 border-2 border-blue-200 text-lg font-bold">
+                      <!-- Points Value -->
+                      <span class="text-lg">{{ user.points }}</span>
+                      <!-- Total Picks Value -->
+                      <span class="text-xs scale-80 text-gray-600">{{ user.totalPicks }}</span>
+                    </div>
+
+                    <!-- Accuracy Circle with SVG Progress Border -->
+                    <div class="relative w-16 h-16 flex items-center justify-center">
+                      <!-- SVG Progress Circle -->
+                      <svg class="w-full h-full" transform="rotate(-90)">
+                        <circle cx="50%" cy="50%" r="25" stroke="lightgray" stroke-width="4" fill="none" />
+                        <circle cx="50%" cy="50%" r="25" stroke="currentColor"
+                          :stroke-dasharray="getCircleCircumference()"
+                          :stroke-dashoffset="getStrokeOffset(user.accuracy)" stroke-width="4" fill="none"
+                          :class="getAccuracyColorClass(user.accuracy)" class="transition-all duration-300" />
+                      </svg>
+                      <!-- Accuracy Text in the Center -->
+                      <span class="absolute text-gray-800 font-bold"
+                        :style="{ fontSize: user.accuracy > 99 ? '10px' : '14px' }">
+                        {{ user.accuracy }}%
+                      </span>
+                    </div>
+                  </div>
+
+
+                  <!-- Expanded Daily Accuracy Section -->
+                  <div class="mt-4 px-1 flex gap-1.5 overflow-x-auto">
+                    <div v-for="(acc, date) in user.latestDailyAccuracy" :key="date"
+                      class="text-center w-12 lg:w-16 border border-gray-200 bg-gray-50 flex flex-col items-center justify-center font-bold rounded-md text-xs">
+                      <span class="hidden lg:block text-[10px] font-light text-gray-500">
+                        {{ date }}
+                      </span>
+                      <span :class="{
+                        'text-green-600': acc >= 70,
+                        'text-yellow-500': acc >= 40 && acc < 70,
+                        'text-red-600': acc < 40
+                      }">{{ acc.toFixed(1) }}%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Indicator for Logged-in User on the Right -->
+                <div v-if="user.id === userId"
+                  class=" text-xs font-bold bg-blue-600 text-white px-2 py-1 rounded-md -ml-8">
+                  YOU
+                </div>
+              </div>
             </div>
             <div class="flex w-full justify-center mt-6">
               <!-- <button @click="getUsers"
