@@ -910,7 +910,7 @@
                       <svg class="w-full h-full" transform="rotate(-90)">
                         <circle cx="50%" cy="50%" r="25" stroke="lightgray" stroke-width="4" fill="none" />
                         <circle cx="50%" cy="50%" r="25" stroke="currentColor"
-                          :stroke-dasharray="getCircleCircumference()"
+                          :stroke-dasharray="getCircleCircumference"
                           :stroke-dashoffset="getStrokeOffset(user.accuracy)" stroke-width="4" fill="none"
                           :class="getAccuracyColorClass(user.accuracy)" class="transition-all duration-300" />
                       </svg>
