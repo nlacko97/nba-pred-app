@@ -94,13 +94,52 @@
   async function getUsers() {
     let { data } = await supabase.from('profiles').select('id,avatar_url,full_name,picks(id,correct,game_date:games(date))')
     users.value = data.map(u => ({ ...u, 'picks': u.picks.map(p => ({ ...p, 'game_date': p.game_date.date })) }))
-    leaderboard.value = data.map(user => ({
-      id: user.id,
-      name: user.full_name,
-      avatar_url: user.avatar_url,
-      points: user.picks.filter(p => p.correct).length,
-      totalPicks: user.picks.filter(p => p.correct !== null).length
-    }))
+    leaderboard.value = data.map(user => {
+
+      const groupedByDate = user.picks.reduce((acc, pick) => {
+        const date = pick.game_date.date; // Access the date string
+        if (!acc[date]) {
+          acc[date] = { correct: 0, total: 0 };
+        }
+        // Update counts for the current date
+        acc[date].total += 1;
+        if (pick.correct) {
+          acc[date].correct += 1;
+        }
+        return acc;
+      }, {});
+
+      // Calculate accuracy percentage for each date
+      const dailyAccuracy = Object.fromEntries(
+        Object.entries(groupedByDate).map(([date, { correct, total }]) => {
+          const accuracy = (correct / total) * 100;
+          return [date, accuracy]; // Return raw number for easier averaging later
+        })
+      );
+
+      // Filter out today's date (assuming it's incomplete)
+      const today = new Date().toISOString().split("T")[0];
+      const filteredDates = Object.keys(dailyAccuracy).filter(date => date < today);
+
+      // Sort dates to ensure we get the last five and calculate average easily
+      const sortedDates = filteredDates.sort((a, b) => new Date(b) - new Date(a));
+
+      // Get latestDailyAccuracy for the last 5 dates
+      const latestDailyAccuracy = sortedDates.slice(0, 5).reduce((acc, date) => {
+        acc[date] = dailyAccuracy[date];
+        return acc;
+      }, {});
+
+      return {
+        id: user.id,
+        name: user.full_name,
+        avatar_url: user.avatar_url,
+        points: user.picks.filter(p => p.correct).length,
+        totalPicks: user.picks.filter(p => p.correct !== null).length,
+        dailyAccuracy: dailyAccuracy,
+        latestDailyAccuracy
+      }
+    })
     sortByPoints()
   }
 
@@ -718,41 +757,50 @@
               picks correct from <span class="hover:underline cursor-pointer text-blue-500"
                 @click="selectedDate = formatYesterdayToDateString()">last night!</span>
             </p>
-            <p class="text-green-600 text-md" v-if="yesterdayReport.accuracy >= 70">That is a very impressive {{
-              yesterdayReport.accuracy }}% ! Keep it up!</p>
+            <p class="text-green-600 text-md" v-if="yesterdayReport.accuracy >= 70">Wow, {{
+              yesterdayReport.accuracy }}% ! You're on a roll! 🔥</p>
             <p class="text-yellow-600 text-md" v-if="yesterdayReport.accuracy < 70 && yesterdayReport.accuracy >= 40">
-              That is a decent {{ yesterdayReport.accuracy }}% ! Let's try to do better tomorrow!</p>
-            <p class="text-red-600 text-md" v-if="yesterdayReport.accuracy < 40">Uh-oh! That is a sub-par {{
-              yesterdayReport.accuracy }}% ! One off day doesn't define you, let's try again tomorrow!</p>
+              Hmm, {{ yesterdayReport.accuracy }}% ! Not great, not terrible 🥨</p>
+            <p class="text-red-600 text-md" v-if="yesterdayReport.accuracy < 40 && yesterdayReport.accuracy > 0">Pretty
+              weak, {{
+                yesterdayReport.accuracy }}% ! Do better 🥗</p>
+            <p class="text-red-600 text-md" v-if="yesterdayReport.accuracy == 0">Wow, {{
+              yesterdayReport.accuracy }}% ! Now that's bad (and sad) 🤦‍♂️</p>
           </div>
           <div v-if="session">
             <div class="bg-white shadow-md rounded pb-40 overflow-hidden">
               <table class="w-full text-sm ">
                 <thead>
                   <tr class="bg-gray-100 text-lg md:text-xl">
-                    <th class="text-left px-4 py-2 text-gray-600">Name</th>
-                    <th class="text-left px-4 py-2 text-gray-600">
-                      <div class="flex items-center gap-2">
-                        <span>Points</span>
-                        <span class="underline text-xs cursor-pointer hover:underline-offset-1" @click="sortByPoints">
-                          <svg xmlns="http://www.w3.org/2000/svg"
-                            class="h-4 w-4 text-gray-500 hover:text-blue-500 transition" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </span>
-                      </div>
-                    </th>
-                    <th class="text-left px-4 py-2 text-gray-600">
-                      <div class="flex items-center gap-2">
-                        <span>Accuracy</span>
-                        <span class="underline text-xs cursor-pointer hover:underline-offset-1" @click="sortByAccuracy">
-                          <svg xmlns="http://www.w3.org/2000/svg"
-                            class="h-4 w-4 text-gray-500 hover:text-blue-500 transition" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </span>
+                    <th class="text-left px-4 py-2 text-gray-600 flex justify-between">
+                      <span>
+
+                        Name
+                      </span>
+                      <div class="text-sm flex gap-16">
+                        <div class="flex items-center gap-2">
+                          <span>Points</span>
+                          <span class="underline text-xs cursor-pointer hover:underline-offset-1" @click="sortByPoints">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                              class="h-4 w-4 text-gray-500 hover:text-blue-500 transition" fill="none"
+                              viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                          <span>Accuracy</span>
+                          <span class="underline text-xs cursor-pointer hover:underline-offset-1"
+                            @click="sortByAccuracy">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                              class="h-4 w-4 text-gray-500 hover:text-blue-500 transition" fill="none"
+                              viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </span>
+                        </div>
                       </div>
                     </th>
                   </tr>
@@ -760,16 +808,38 @@
                 <tbody>
                   <tr v-for="user in leaderboard" :key="user.id"
                     class="p-8 border-b last:border-0 transform transition duration-100 text-md md:text-lg"
-                    :class="{ ' bg-gray-50': user.id === userId }">
-                    <td class="px-4 py-6 flex items-center gap-2">
-                      <img :src="user.avatar_url" alt="" class="rounded-full w-6 h-6">
-                      {{ user.name }}
-                    </td>
-                    <td class="px-4 py-2 font-bold">{{ user.points }} <span class="text-gray-500 font-light">({{
-                      user.totalPicks
-                        }})</span>
-                    </td>
-                    <td class="px-4 py-2 text-gray-500">{{ (user.points * 100 / user.totalPicks).toPrecision(3) }}%
+                    :class="{ 'bg-gradient-to-b from-slate-50 to-cyan-50 hover:bg-gradient-to-b hover:from-amber-50 hover:to-cyan-50': user.id === userId }">
+                    <td class="px-4 py-6 flex flex-col justify-start gap-2">
+                      <div class="flex items-center gap-2 justify-between">
+                        <div class="flex items-center gap-2">
+
+                          <img :src="user.avatar_url" alt="" class="rounded-full w-8 h-8">
+                          {{ user.name }}
+                        </div>
+                        <div class="flex items-center gap-24 font-semibold">
+                          <div>
+                            {{ user.points }} <span class="text-gray-500 font-light">({{
+                              user.totalPicks
+                              }})</span>
+                          </div>
+                          <div class="font-light">
+                            {{ (user.points * 100 / user.totalPicks).toPrecision(3) }}%
+                          </div>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2 py-2">
+                        <!-- <p class="text-xs font-semibold hidden md:block">Last 5 days: </p> -->
+                        <div v-for="(acc, index) in user.latestDailyAccuracy" :key="index"
+                          class="text-xs hover:shadow cursor-default flex flex-col items-center justify-center px-2 py-0.5 rounded-lg font-bold bg-gray-50 border border-gray-200">
+                          <p class="font-light">
+                            {{ index.split('-')[1] }}-{{ index.split('-')[2] }}
+                          </p>
+                          <p class="text-sm"
+                            :class="{ 'text-green-400': acc >= 70, 'text-yellow-400': acc >= 40 && acc < 70, 'text-red-400': acc < 40 }">
+                            {{ acc.toFixed(1) }}%</p>
+                        </div>
+
+                      </div>
                     </td>
                   </tr>
                 </tbody>
