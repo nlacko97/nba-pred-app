@@ -127,7 +127,7 @@
       const sortedDates = filteredDates.sort((a, b) => new Date(b) - new Date(a));
 
       // Get latestDailyAccuracy for the last 5 dates
-      const latestDailyAccuracy = sortedDates.slice(0, 5).reduce((acc, date) => {
+      const latestDailyAccuracy = sortedDates.slice(0, 4).reduce((acc, date) => {
         acc[date] = dailyAccuracy[date];
         return acc;
       }, {});
@@ -363,9 +363,14 @@
     if (game.picks[userId.value]) {
       toUpsert.id = game.picks[userId.value].id;
     }
-    const { data } = await supabase.from('picks')
+    const { data, error } = await supabase.from('picks')
       .upsert([toUpsert]).select('*,user:user_id(full_name),\
         picked_team_name:picked_team(name)');
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
 
     games.value = games.value.map(g => {
       if (g.id === game.id) {
@@ -921,7 +926,7 @@
 
 
                   <!-- Expanded Daily Accuracy Section -->
-                  <div class="mt-4 px-1 flex gap-1.5 overflow-x-auto">
+                  <div class="mt-4 px-1 gap-y-2.5 grid grid-cols-4">
                     <div v-for="(acc, date) in user.latestDailyAccuracy" :key="date"
                       class="text-center w-12 lg:w-16 border border-gray-200 bg-gray-50 flex flex-col items-center justify-center font-bold rounded-md text-xs">
                       <span class="hidden lg:block text-[10px] font-light text-gray-500">
