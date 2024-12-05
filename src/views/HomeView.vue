@@ -326,7 +326,6 @@ async function getInjuryReport() {
   const injuriesApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-injuries`
   const injuriesResponse = await fetch(injuriesApiUrl, { headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` } });
   injuries.value = await injuriesResponse.json()
-  console.log(injuries.value)
 }
 
 async function handleSignInWithGoogle(response) {
