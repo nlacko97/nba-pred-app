@@ -8,16 +8,18 @@ import { useDark, useToggle } from "@vueuse/core";
 
 const games = ref([])
 
+const teamResultsLast5Games = ref([]);
+
 const injuries = ref()
 
 const session = ref()
 
 const userId = ref()
 
-const users = ref()
+const users = ref([])
 
 const selectedDate = ref(new Date().toISOString().split('T')[0]); // Sets today's date by default
-// const selectedDate = ref('2024-12-10'); // Sets today's date by default
+// const selectedDate = ref('2025-04-02'); // Sets today's date by default
 
 const selectedDateMobile = ref(new Date().toISOString().split('T')[0]); // Sets today's date by default
 
@@ -82,9 +84,9 @@ watch(selectedDateMobile, (value) => {
 
 watch(injuries, () => {
   games.value = games.value.map(game => {
-    if (isValidDate(game.status)) {
-      game.home_team.injuries = injuries.value.filter(i => i.team === game.home_team.abbreviation).map(i => ({ playerName: i.player, injury: i.injury, position: i.position, status: i.status }))
-      game.away_team.injuries = injuries.value.filter(i => i.team === game.away_team.abbreviation).map(i => ({ playerName: i.player, injury: i.injury, position: i.position, status: i.status }))
+    if (isValidDate(game.game_status)) {
+      game.home_team.injuries = injuries.value.filter(i => i.team === game.home_team_abbreviation).map(i => ({ playerName: i.player, injury: i.injury, position: i.position, status: i.status }))
+      game.away_team.injuries = injuries.value.filter(i => i.team === game.away_team_abbreviation).map(i => ({ playerName: i.player, injury: i.injury, position: i.position, status: i.status }))
     }
 
     return game;
@@ -98,96 +100,49 @@ function formatYesterdayToDateString() {
 }
 
 async function getUsers() {
-  let { data } = await supabase.from('profiles')
-    .select('id,avatar_url,full_name,picks(id,correct,picked_team,game_date:games(date),away_team_id:games(away_team_id),home_team_id:games(home_team_id))')
-  // let { data: teams } = await supabase.from('teams').select('id, abbreviation');
-  users.value = data.map(u => ({ ...u, 'picks': u.picks.map(p => ({ ...p, 'game_date': p.game_date.date, 'away_team_id': p.away_team_id.away_team_id, 'home_team_id': p.home_team_id.home_team_id })) }))
 
-  leaderboard.value = data.map(user => {
+  let { data: userWithSummary, error } = await supabase.rpc('get_user_picks_summary');
+  if (error) {
+    console.error('Error fetching user picks summary:', error);
+    return;
+  }
+  let { data: userPicksPastRecord, error: error2 } = await supabase.rpc('get_user_picks_past_record');
+  if (error) {
+    console.error('Error fetching user picks past record:', error2);
+    return;
+  }
 
-    // let picksByTeam = user.picks.reduce((acc, pick) => {
-    //   const homeTeam = teams.find(t => t.id === pick.home_team_id.home_team_id);
-    //   const awayTeam = teams.find(t => t.id === pick.away_team_id.away_team_id);
+  userWithSummary = userWithSummary.map(u => {
+    u.picks = userPicksPastRecord.filter(up => up.user_id === u.id)
+    return u;
+  })
 
-    //   if (!acc[awayTeam.id]) {
-    //     acc[awayTeam.id] = { correct: 0, total: 0, abbreviation: awayTeam.abbreviation }
-    //   }
-    //   if (!acc[homeTeam.id]) {
-    //     acc[homeTeam.id] = { correct: 0, total: 0, abbreviation: homeTeam.abbreviation }
-    //   }
-    //   if (pick.correct) {
-    //     acc[awayTeam.id].correct += 1;
-    //     acc[homeTeam.id].correct += 1;
-    //   }
-    //   if (pick.correct !== null) {
-    //     acc[awayTeam.id].total += 1;
-    //     acc[homeTeam.id].total += 1;
-    //   }
-
-    //   return acc;
-    // }, {})
-
-    const groupedByDate = user.picks.reduce((acc, pick) => {
-      const date = pick.game_date.date; // Access the date string
-      if (!acc[date]) {
-        acc[date] = { correct: 0, total: 0 };
-      }
-      // Update counts for the current date
-      acc[date].total += 1;
-      if (pick.correct) {
-        acc[date].correct += 1;
-      }
+  leaderboard.value = userWithSummary.map(user => {
+    user.latestDailyAccuracy = user.picks.reduce((acc, curr) => {
+      acc[curr.game_date] = curr.accuracy;
       return acc;
-    }, {});
-
-    // Calculate accuracy percentage for each date
-    const dailyAccuracy = Object.fromEntries(
-      Object.entries(groupedByDate).map(([date, { correct, total }]) => {
-        const accuracy = (correct / total) * 100;
-        return [date, accuracy]; // Return raw number for easier averaging later
-      })
-    );
-
-    // Filter out today's date (assuming it's incomplete)
-    const today = new Date().toISOString().split("T")[0];
-    const filteredDates = Object.keys(dailyAccuracy).filter(date => date < today);
-
-    // Sort dates to ensure we get the last five and calculate average easily
-    const sortedDates = filteredDates.sort((a, b) => new Date(b) - new Date(a));
-
-    // Get latestDailyAccuracy for the last 5 dates
-    const latestDailyAccuracy = sortedDates.slice(0, 4).reduce((acc, date) => {
-      acc[date] = dailyAccuracy[date];
-      return acc;
-    }, {});
-
-    const points = user.picks.filter(p => p.correct).length;
-    const totalPicks = user.picks.filter(p => p.correct !== null).length;
-    const accuracy = (points * 100 / totalPicks).toFixed(1);
-
+    }, {})
     return {
       id: user.id,
       name: user.full_name,
       avatar_url: user.avatar_url,
-      points,
-      totalPicks,
-      dailyAccuracy: dailyAccuracy,
-      latestDailyAccuracy,
-      accuracy,
-      // picksByTeam
+      points: user.correct_picks,
+      totalPicks: user.total_picks,
+      latestDailyAccuracy: user.latestDailyAccuracy,
+      accuracy: user.accuracy,
     }
-  })
+  });
+  users.value = userWithSummary;
   sortByPoints()
 }
 
 function updateYesterdayReport() {
-  const picksFromYesterady = users.value.find(u => u.id === userId.value)?.picks.filter(p => p.game_date === formatYesterdayToDateString() && p.correct !== null);
-  if (picksFromYesterady && picksFromYesterady.length) {
-    const correct = picksFromYesterady.filter(p => p.correct).length;
+  const picksFromYesterady = users.value.find(u => u.id === userId.value)?.picks.find(p => p.game_date === formatYesterdayToDateString() && p.correct !== null);
+  if (picksFromYesterady) {
     yesterdayReport.value = {
-      correct: correct,
-      total: picksFromYesterady.length,
-      accuracy: (correct * 100 / picksFromYesterady.length).toPrecision(3)
+      correct: picksFromYesterady.correct_picks,
+      total: picksFromYesterady.total_picks,
+      accuracy: picksFromYesterady.accuracy
     }
   } else {
     yesterdayReport.value = null
@@ -201,83 +156,42 @@ const toggleDatePicker = () => {
 async function getGames() {
   loading.value = true;
   // await new Promise(r => setTimeout(r, 2000));
-  let { data } = await supabase.from('games')
-    .select('\
-    *, \
-    home_team:home_team_id(*),\
-    away_team:away_team_id(*),\
-    picks(*,\
-      user:user_id(full_name),\
-      picked_team_name:picked_team(name)))')
-    .eq('date', selectedDate.value)
-    .order('date', { ascending: true })
-    .order('status');
-
-
-  const { data: teamGames, error: teamError } = await supabase
-    .from('games')
-    .select(`
-    home_team_id,
-    away_team_id,
-    home_team_score,
-    away_team_score
-  `)
-    .eq('status', 'Final').order('date', { ascending: true });
-
-  const teamRecords = {};
-  teamGames.forEach(game => {
-
-    const { home_team_id, away_team_id, home_team_score, away_team_score } = game;
-
-    if (!teamRecords[home_team_id]) teamRecords[home_team_id] = { wins: 0, losses: 0, record: [] };
-    if (!teamRecords[away_team_id]) teamRecords[away_team_id] = { wins: 0, losses: 0, record: [] };
-
-    if (home_team_score > away_team_score) {
-      teamRecords[home_team_id].wins += 1;
-      teamRecords[away_team_id].losses += 1;
-      teamRecords[home_team_id].record.push('W');
-      teamRecords[away_team_id].record.push('L');
-    } else if (away_team_score > home_team_score) {
-      teamRecords[away_team_id].wins += 1;
-      teamRecords[home_team_id].losses += 1;
-      teamRecords[away_team_id].record.push('W');
-      teamRecords[home_team_id].record.push('L');
-    }
-  });
+  let { data, error } = await supabase.rpc('get_games_by_date_v2', { game_date_v2: selectedDate.value })
+  if (error) {
+    console.error('Error fetching games:', error);
+    return;
+  }
 
   data = data.map(g => {
-    g.home_team.picks = g.picks.reduce((acc, pick) => {
-      if (pick.picked_team === g.home_team.id) {
-        acc[pick.user_id] = pick;
-      }
-      return acc;
-    }, {})
-    g.away_team.picks = g.picks.reduce((acc, pick) => {
-      if (pick.picked_team === g.away_team.id) {
-        acc[pick.user_id] = pick;
-      }
-      return acc;
-    }, {})
+    g.home_team = {};
+    g.away_team = {}
+    g.home_team.picks = g.picks.filter((pick) => {
+      return pick.picked_team === g.home_team_id;
+    })
+    g.away_team.picks = g.picks.filter((pick) => {
+      return pick.picked_team === g.away_team_id;
+    })
     g.picks = g.picks.reduce((acc, pick) => {
       acc[pick.user_id] = pick;
       return acc;
     }, {});
 
 
-    g.home_team.wins = teamRecords[g.home_team.id].wins || 0
-    g.home_team.losses = teamRecords[g.home_team.id].losses || 0
-    g.away_team.wins = teamRecords[g.away_team.id].wins || 0
-    g.away_team.losses = teamRecords[g.away_team.id].losses || 0
-    g.home_team.record = teamRecords[g.home_team.id].record.slice(-5) || []
-    g.away_team.record = teamRecords[g.away_team.id].record.slice(-5) || []
-    if (isValidDate(g.status)) {
-      g.home_team.injuries = injuries?.value?.filter(i => i.team === g.home_team.abbreviation).map(i => ({ playerName: i.player, injury: i.injury, position: i.position, status: i.status }))
-      g.away_team.injuries = injuries?.value?.filter(i => i.team === g.away_team.abbreviation).map(i => ({ playerName: i.player, injury: i.injury, position: i.position, status: i.status }))
+    g.home_team.wins = g.home_team_wins || 0
+    g.home_team.losses = g.home_team_losses || 0
+    g.away_team.wins = g.away_team_wins || 0
+    g.away_team.losses = g.away_team_losses || 0
+    g.home_team.record = teamResultsLast5Games.value.filter(r => r.team_id === g.home_team_id).map(r => r.result).slice(0, 5).reverse() || [];
+    g.away_team.record = teamResultsLast5Games.value.filter(r => r.team_id === g.away_team_id).map(r => r.result).slice(0, 5).reverse() || [];
+    if (isValidDate(g.game_status)) {
+      g.home_team.injuries = injuries?.value?.filter(i => i.team === g.home_team_abbreviation).map(i => ({ playerName: i.player, injury: i.injury, position: i.position, status: i.status }))
+      g.away_team.injuries = injuries?.value?.filter(i => i.team === g.away_team_abbreviation).map(i => ({ playerName: i.player, injury: i.injury, position: i.position, status: i.status }))
     }
 
     return g;
   });
   games.value = data;
+
   loading.value = false;
 
   // SCOREBOARD GROUNDWORK
@@ -307,9 +221,21 @@ async function impersonate() {
   }
 }
 
+async function getLast5GamesByTeam() {
+  const { data, error } = await supabase.rpc('get_last_5_games_per_team');
+
+  if (error) {
+    console.error('Error fetching last 5 games by team:', error);
+    return;
+  }
+
+  teamResultsLast5Games.value = data;
+}
+
 async function init() {
   allowPastVotes.value = import.meta.env.VITE_ALLOW_PAST_VOTES === 'true';
   getUsers()
+  getLast5GamesByTeam();
   getGames()
   getInjuryReport()
 
@@ -342,8 +268,8 @@ async function handleSignInWithGoogle(response) {
   }
 }
 
-function getTeamImageUrl(team) {
-  return new URL(`../assets/${team.abbreviation}/logo.svg`, import.meta.url).href;
+function getTeamImageUrl(teamAbbreviation) {
+  return new URL(`../assets/${teamAbbreviation}/logo.svg`, import.meta.url).href;
 }
 function getTeamImageUrlByAbr(abbr) {
   return new URL(`./assets/${abbr}/logo.svg`, import.meta.url).href;
@@ -364,10 +290,10 @@ function formatISOTo24HourTime(date) {
 }
 
 function getStatus(game) {
-  if (isValidDate(game.status)) {
-    return formatISOTo24HourTime(new Date(game.status));
+  if (isValidDate(game.game_status)) {
+    return formatISOTo24HourTime(new Date(game.game_status));
   }
-  return game.status;
+  return game.game_status;
 }
 
 function isValidDate(date) {
@@ -379,12 +305,12 @@ async function submitPick(game, picked_team_id) {
   if (!userId.value) {
     return;
   }
-  if (!allowPastVotes.value && !isValidDate(game.status)) {
+  if (!allowPastVotes.value && !isValidDate(game.game_status)) {
     return;
   }
-  const toUpsert = { game_id: game.id, picked_team: picked_team_id, user_id: userId.value };
+  const toUpsert = { game_id: game.game_id, picked_team: picked_team_id, user_id: userId.value };
 
-  if (allowPastVotes.value && game.status === 'Final') {
+  if (allowPastVotes.value && game.game_status === 'Final') {
     const winner =
       game.home_team_score > game.away_team_score
         ? game.home_team
@@ -393,7 +319,7 @@ async function submitPick(game, picked_team_id) {
   }
 
   if (game.picks[userId.value]) {
-    toUpsert.id = game.picks[userId.value].id;
+    toUpsert.id = game.picks[userId.value].pick_id;
   }
   const { data, error } = await supabase.from('picks')
     .upsert([toUpsert]).select('*,user:user_id(full_name),\
@@ -405,12 +331,12 @@ async function submitPick(game, picked_team_id) {
   }
 
   games.value = games.value.map(g => {
-    if (g.id === game.id) {
+    if (g.game_id === game.game_id) {
       return {
         ...g,
         picks: {
           ...g.picks,
-          [userId.value]: data[0],
+          [userId.value]: { ...data[0], pick_id: data[0].id },
         },
       };
     }
@@ -428,20 +354,21 @@ async function signOut() {
   }
 }
 
-const getClass = (game, team) => {
+const getClass = (game, teamId) => {
   const hoverClasses = 'hover:bg-blue-50 hover:cursor-pointer dark:hover:bg-blue-950 ';
   let classes = '';
-  if (session.value && (isValidDate(game.status) || allowPastVotes.value)) {
+  if (session.value && (isValidDate(game.game_status) || allowPastVotes.value)) {
     classes = classes.concat(hoverClasses);
   }
 
   const pick = game.picks[userId.value];
+
   if (!pick) { return classes }
-  if (pick.correct && pick.picked_team === team.id) {
+  if (pick.correct && pick.picked_team === teamId) {
     classes = classes.concat('bg-green-50 border-2 border-green-300 dark:bg-green-900 dark:text-gray-100')
-  } else if (pick.correct === false && pick.picked_team === team.id) {
+  } else if (pick.correct === false && pick.picked_team === teamId) {
     classes = classes.concat('bg-red-50 border-2 border-red-300 dark:bg-red-900 dark:text-gray-100');
-  } else if (pick.picked_team === team.id) {
+  } else if (pick.picked_team === teamId) {
     classes = classes.concat('bg-blue-50 border-2 border-blue-300 dark:bg-blue-950 dark:text-gray-100');
   } else {
     classes = classes.concat('bg-gray-50 border-2 border-gray-50 dark:bg-blue-900 dark:border-0 dark:text-gray-100');
@@ -505,7 +432,7 @@ function getAccuracyColorClass(accuracy) {
               class="w-full z-20 bg-gray-100 dark:bg-indigo-900 text-center rounded-md py-2 px-3 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-indigo-600 flex items-center justify-between transition">
               <!-- Calendar Icon -->
               <svg xmlns="http://www.w3.org/2000/svg"
-                class="h-7 w-7 text-gray-500 dark:text-gray-200 hover:text-blue-500 hover:text-gray-400 transition z-20"
+                class="h-7 w-7 text-gray-500 dark:text-gray-200 hover:text-gray-400 transition z-20"
                 fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M8 7V3m8 4V3M3 10h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -517,7 +444,7 @@ function getAccuracyColorClass(accuracy) {
               class="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer" />
           </div>
         </div>
-        <div class="h-20 flex md:hidden justify-center items-center w-full bg-white px-6 py-4 shadow-md">
+        <div class="h-20 flex md:hidden justify-center items-center w-full bg-white dark:bg-gradient-to-r dark:from-blue-950 dark:to-indigo-950 dark:text-gray-100 px-6 py-4 shadow-md">
           <input type="date" v-model="selectedDateMobile"
             class="p-2 border rounded-lg text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-300" />
         </div>
@@ -543,7 +470,7 @@ function getAccuracyColorClass(accuracy) {
             <!-- Game Header -->
             <div
               class="flex justify-between items-center bg-gray-100 dark:bg-transparent px-6 py-3 border-b border-gray-200">
-              <p class="text-xs font-medium text-gray-500 dark:text-gray-200">{{ game.date }}</p>
+              <p class="text-xs font-medium text-gray-500 dark:text-gray-200">{{ game.game_date }}</p>
               <p class="text-xs font-semibold text-red-500 uppercase tracking-wide">{{ getStatus(game) }}</p>
             </div>
             <div v-if="game.stage"
@@ -556,12 +483,13 @@ function getAccuracyColorClass(accuracy) {
               class="flex flex-col md:flex-row items-center md:items-start px-6 py-6 space-y-4 md:space-y-0 md:space-x-4">
               <!-- Away Team -->
               <div
-                :class="['w-full md:w-1/2 flex justify-between items-center p-4 rounded-lg shadow-sm ', getClass(game, game.away_team)]"
-                @click="submitPick(game, game.away_team.id)">
+                :class="['w-full md:w-1/2 flex justify-between items-center p-4 rounded-lg shadow-sm ', getClass(game, game.away_team_id)]"
+                @click="submitPick(game, game.away_team_id)">
                 <div class="flex items-center space-x-3">
-                  <img :src="getTeamImageUrl(game.away_team)" alt="away-logo" class="w-20 h-20 object-contain" />
+                  <img :src="getTeamImageUrl(game.away_team_abbreviation)" alt="away-logo"
+                    class="w-20 h-20 object-contain" />
                   <div class="flex flex-col">
-                    <p class="font-semibold text-lg text-gray-800 dark:text-gray-100">{{ game.away_team.name }} <span
+                    <p class="font-semibold text-lg text-gray-800 dark:text-gray-100">{{ game.away_team_name }} <span
                         class="text-sm font-medium">
                         ({{ game.away_team.wins }} - {{ game.away_team.losses }})
                       </span>
@@ -580,12 +508,13 @@ function getAccuracyColorClass(accuracy) {
 
               <!-- Home Team -->
               <div
-                :class="['w-full md:w-1/2 flex justify-between items-center p-4 rounded-lg shadow-sm', getClass(game, game.home_team)]"
-                @click="submitPick(game, game.home_team.id)">
+                :class="['w-full md:w-1/2 flex justify-between items-center p-4 rounded-lg shadow-sm', getClass(game, game.home_team_id)]"
+                @click="submitPick(game, game.home_team_id)">
                 <div class="flex items-center space-x-3">
-                  <img :src="getTeamImageUrl(game.home_team)" alt="home-logo" class="w-20 h-20 object-contain" />
+                  <img :src="getTeamImageUrl(game.home_team_abbreviation)" alt="home-logo"
+                    class="w-20 h-20 object-contain" />
                   <div class="flex flex-col">
-                    <p class="font-semibold text-lg text-gray-800 dark:text-gray-100">{{ game.home_team.name }} <span
+                    <p class="font-semibold text-lg text-gray-800 dark:text-gray-100">{{ game.home_team_name }} <span
                         class="text-sm font-medium">
                         ({{ game.home_team.wins }} - {{ game.home_team.losses }})
                       </span>
@@ -635,20 +564,20 @@ function getAccuracyColorClass(accuracy) {
             <!-- User Picks -->
             <div
               class="px-4 py-2 bg-gray-100 dark:bg-transparent text-sm text-gray-700 border-t border-gray-200 dark:border-gray-600 flex flex-col md:flex-row"
-              v-show="game.status === 'Final'">
+              v-show="game.game_status === 'Final'">
               <div class="w-full md:w-1/2 mb-4 md:mb-0 pl-4 text-xs">
                 <div class="overflow-x-auto">
                   <table class="w-full table-fixed text-left border-collapse">
                     <thead>
                       <tr class="bg-gray-100 dark:bg-transparent">
                         <th class="px-4 py-2 text-gray-600 dark:text-white font-medium">Voted for {{
-                          game.away_team.name }}</th>
+                          game.away_team_name }}</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr class="border-t border-gray-200 dark:border-gray-600"
                         v-for="(pick, index) in game.away_team.picks" :key="index">
-                        <td class="px-4 py-2 text-gray-800 dark:text-white">{{ pick.user.full_name }}</td>
+                        <td class="px-4 py-2 text-gray-800 dark:text-white">{{ pick.user_full_name }}</td>
                         <td class="px-4 py-2 flex justify-end opacity-70">
                           <span v-if="pick.correct">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -678,14 +607,14 @@ function getAccuracyColorClass(accuracy) {
                     <thead>
                       <tr class="bg-gray-100 dark:bg-transparent">
                         <th class="px-4 py-2 text-gray-600 dark:text-gray-100 font-medium">Voted for {{
-                          game.home_team.name }}</th>
+                          game.home_team_name }}</th>
                       </tr>
                       <tr></tr>
                     </thead>
                     <tbody>
                       <tr class="border-t border-gray-200 dark:border-gray-600"
                         v-for="(pick, index) in game.home_team.picks" :key="index">
-                        <td class="px-4 py-2 text-gray-800 dark:text-gray-100">{{ pick.user.full_name }}</td>
+                        <td class="px-4 py-2 text-gray-800 dark:text-gray-100">{{ pick.user_full_name }}</td>
                         <td class="px-4 py-2 flex justify-end opacity-70">
                           <span v-if="pick.correct">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -713,7 +642,7 @@ function getAccuracyColorClass(accuracy) {
             <!-- Injury Report -->
             <div
               class="px-4 py-2 bg-gray-100 dark:bg-transparent text-sm text-gray-700 dark:text-gray-200 border-t border-gray-200 dark:border-gray-600 flex flex-col md:flex-row"
-              v-show="isValidDate(game.status)">
+              v-show="isValidDate(game.game_status)">
               <div class="w-full md:w-1/2 mb-4 md:mb-0 pl-4 text-xs">
                 <div class="overflow-x-auto">
                   <table class="w-full table-fixed text-left border-collapse">
