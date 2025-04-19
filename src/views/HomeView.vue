@@ -41,6 +41,8 @@ const isDark = useDark()
 
 const toggleDarkMode = useToggle(isDark)
 
+let isLeaderboardPlayoff = true;
+
 window.handleSignInWithGoogle = handleSignInWithGoogle
 
 function sortByAccuracy() {
@@ -99,9 +101,9 @@ function formatYesterdayToDateString() {
   return date.toISOString().split('T')[0]
 }
 
-async function getUsers() {
-
-  let { data: userWithSummary, error } = await supabase.rpc('get_user_picks_summary');
+async function getUsers(postseason = false) {
+  isLeaderboardPlayoff = postseason;
+  let { data: userWithSummary, error } = await supabase.rpc('get_user_picks_summary', { for_postseason: postseason });
   if (error) {
     console.error('Error fetching user picks summary:', error);
     return;
@@ -234,7 +236,7 @@ async function getLast5GamesByTeam() {
 
 async function init() {
   allowPastVotes.value = import.meta.env.VITE_ALLOW_PAST_VOTES === 'true';
-  getUsers()
+  getUsers(isLeaderboardPlayoff)
   getLast5GamesByTeam();
   getGames()
   getInjuryReport()
@@ -270,9 +272,6 @@ async function handleSignInWithGoogle(response) {
 
 function getTeamImageUrl(teamAbbreviation) {
   return new URL(`../assets/${teamAbbreviation}/logo.svg`, import.meta.url).href;
-}
-function getTeamImageUrlByAbr(abbr) {
-  return new URL(`./assets/${abbr}/logo.svg`, import.meta.url).href;
 }
 
 function createAssetUrl(assetPath) {
@@ -432,8 +431,8 @@ function getAccuracyColorClass(accuracy) {
               class="w-full z-20 bg-gray-100 dark:bg-indigo-900 text-center rounded-md py-2 px-3 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-indigo-600 flex items-center justify-between transition">
               <!-- Calendar Icon -->
               <svg xmlns="http://www.w3.org/2000/svg"
-                class="h-7 w-7 text-gray-500 dark:text-gray-200 hover:text-gray-400 transition z-20"
-                fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                class="h-7 w-7 text-gray-500 dark:text-gray-200 hover:text-gray-400 transition z-20" fill="none"
+                viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M8 7V3m8 4V3M3 10h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
@@ -444,7 +443,8 @@ function getAccuracyColorClass(accuracy) {
               class="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer" />
           </div>
         </div>
-        <div class="h-20 flex md:hidden justify-center items-center w-full bg-white dark:bg-gradient-to-r dark:from-blue-950 dark:to-indigo-950 dark:text-gray-100 px-6 py-4 shadow-md">
+        <div
+          class="h-20 flex md:hidden justify-center items-center w-full bg-white dark:bg-gradient-to-r dark:from-blue-950 dark:to-indigo-950 dark:text-gray-100 px-6 py-4 shadow-md">
           <input type="date" v-model="selectedDateMobile"
             class="p-2 border rounded-lg text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-300" />
         </div>
@@ -787,6 +787,34 @@ function getAccuracyColorClass(accuracy) {
               yesterdayReport.accuracy }}% ! Do better 🥗</p>
           <p class="text-red-600 dark:text-red-300 text-md" v-if="yesterdayReport.accuracy == 0">Wow, {{
             yesterdayReport.accuracy }}% ! Now that's bad (and sad) 🤦‍♂️</p>
+        </div>
+        <div
+          class="bg-white dark:bg-gradient-to-r dark:from-blue-950 dark:to-indigo-950 dark:text-gray-100 mb-4 rounded-xl shadow-md px-4 py-6 font-thin text-lg flex justify-between items-center leading-relaxed">
+          <button class="px-4 py-3 border rounded-lg uppercase font-semibold
+           shadow-lg transition-all duration-100 ease-in-out
+           transform hover:scale-105 active:scale-95
+           bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border-gray-300
+           dark:bg-gradient-to-r dark:from-slate-800 dark:to-indigo-600 dark:text-white dark:border-indigo-700" :class="{
+            'ring-4 ring-yellow-400 shadow-yellow-400/50 bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900 border-yellow-400':
+              !isLeaderboardPlayoff,
+            'bg-gradient-to-r from-indigo-400 to-indigo-600 text:yellow-900 dark:text-white border-indigo-600':
+              isLeaderboardPlayoff,
+          }" v-on:click="getUsers(false)">
+            Regular Season
+          </button>
+
+          <button class="px-4 py-3 border rounded-lg uppercase font-semibold
+           shadow-lg transition-all duration-100 ease-in-out
+           transform hover:scale-105 active:scale-95
+           bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 border-gray-300
+           dark:bg-gradient-to-r dark:from-slate-800 dark:to-indigo-600 dark:text-white dark:border-indigo-700" :class="{
+            'ring-4 ring-yellow-400 shadow-yellow-400/50 bg-gradient-to-r from-yellow-300 to-yellow-400 text-yellow-900 border-yellow-400':
+              isLeaderboardPlayoff,
+            'bg-gradient-to-r from-indigo-400 to-indigo-600 text-white border-indigo-600':
+              !isLeaderboardPlayoff,
+          }" v-on:click="getUsers(true)">
+            Playoffs
+          </button>
         </div>
         <div v-if="session">
           <div class="space-y-4 py-3">
