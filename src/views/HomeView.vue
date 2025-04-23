@@ -236,8 +236,8 @@ async function getLast5GamesByTeam() {
 
 async function init() {
   allowPastVotes.value = import.meta.env.VITE_ALLOW_PAST_VOTES === 'true';
+  await getLast5GamesByTeam();
   getUsers(isLeaderboardPlayoff)
-  getLast5GamesByTeam();
   getGames()
   getInjuryReport()
 
