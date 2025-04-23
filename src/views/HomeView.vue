@@ -18,8 +18,8 @@ const userId = ref()
 
 const users = ref([])
 
-const selectedDate = ref(new Date().toISOString().split('T')[0]); // Sets today's date by default
-// const selectedDate = ref('2025-04-02'); // Sets today's date by default
+// const selectedDate = ref(new Date().toISOString().split('T')[0]); // Sets today's date by default
+const selectedDate = ref('2025-04-30'); // Sets today's date by default
 
 const selectedDateMobile = ref(new Date().toISOString().split('T')[0]); // Sets today's date by default
 
@@ -178,7 +178,7 @@ async function getGames() {
       return acc;
     }, {});
 
-
+    // hello
     g.home_team.wins = g.home_team_wins || 0
     g.home_team.losses = g.home_team_losses || 0
     g.away_team.wins = g.away_team_wins || 0
@@ -305,6 +305,10 @@ async function submitPick(game, picked_team_id) {
     return;
   }
   if (!allowPastVotes.value && !isValidDate(game.game_status)) {
+    return;
+  }
+  if (new Date(game.game_status) < new Date()) {
+    alert('AH AH. game already started :)')
     return;
   }
   const toUpsert = { game_id: game.game_id, picked_team: picked_team_id, user_id: userId.value };
