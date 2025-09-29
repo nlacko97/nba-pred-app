@@ -1,163 +1,34 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
-import { supabase } from '../lib/supabaseClient'
+import { computed, onMounted } from 'vue'
+import { useGamesStore } from '../stores/games'
+import { useGlobalStore } from '../stores/global'
 
-const games = ref([])
-const teamResultsLast5Games = ref([])
-const injuries = ref()
-const session = ref()
-const userId = ref()
-const selectedDate = ref(new Date().toISOString().split('T')[0])
-const selectedDateMobile = ref(new Date().toISOString().split('T')[0])
-const loading = ref(false)
-const allowPastVotes = ref(false)
+const gamesStore = useGamesStore()
+const globalStore = useGlobalStore()
 
-watch(selectedDate, value => {
-  selectedDateMobile.value = value
-  getGames()
-})
+// Reactive computed properties from stores
+const games = computed(() => gamesStore.games)
+const selectedDate = computed(() => gamesStore.selectedDate)
+const selectedDateMobile = computed(() => gamesStore.selectedDateMobile)
+const loading = computed(() => gamesStore.loading)
+const session = computed(() => globalStore.session)
+const userId = computed(() => globalStore.userId)
 
-watch(selectedDateMobile, value => {
-  selectedDate.value = value
-})
-
-watch(injuries, () => {
-  games.value = games.value.map(game => {
-    if (isValidDate(game.game_status)) {
-      game.home_team.injuries = injuries.value
-        .filter(i => i.team === game.home_team_abbreviation)
-        .map(i => ({
-          playerName: i.player,
-          injury: i.injury,
-          position: i.position,
-          status: i.status,
-        }))
-      game.away_team.injuries = injuries.value
-        .filter(i => i.team === game.away_team_abbreviation)
-        .map(i => ({
-          playerName: i.player,
-          injury: i.injury,
-          position: i.position,
-          status: i.status,
-        }))
-    }
-    return game
-  })
-})
-
-function goToPreviousDay() {
-  const date = new Date(selectedDate.value)
-  date.setDate(date.getDate() - 1)
-  selectedDate.value = date.toISOString().split('T')[0]
+// Handle date changes
+const handleDateChange = newDate => {
+  gamesStore.selectedDate = newDate
+  gamesStore.selectedDateMobile = newDate
 }
 
-function goToNextDay() {
-  const date = new Date(selectedDate.value)
-  date.setDate(date.getDate() + 1)
-  selectedDate.value = date.toISOString().split('T')[0]
-}
-
-async function getGames() {
-  loading.value = true
-  let { data, error } = await supabase.rpc('get_games_by_date_v2', {
-    game_date_v2: selectedDate.value,
-  })
-  if (error) {
-    console.error('Error fetching games:', error)
-    return
-  }
-
-  data = data.map(g => {
-    g.home_team = {}
-    g.away_team = {}
-    g.home_team.picks = g.picks.filter(pick => {
-      return pick.picked_team === g.home_team_id
-    })
-    g.away_team.picks = g.picks.filter(pick => {
-      return pick.picked_team === g.away_team_id
-    })
-    g.picks = g.picks.reduce((acc, pick) => {
-      acc[pick.user_id] = pick
-      return acc
-    }, {})
-
-    g.home_team.wins = g.home_team_wins || 0
-    g.home_team.losses = g.home_team_losses || 0
-    g.away_team.wins = g.away_team_wins || 0
-    g.away_team.losses = g.away_team_losses || 0
-    g.home_team.record =
-      teamResultsLast5Games.value
-        .filter(r => r.team_id === g.home_team_id)
-        .map(r => r.result)
-        .slice(0, 5)
-        .reverse() || []
-    g.away_team.record =
-      teamResultsLast5Games.value
-        .filter(r => r.team_id === g.away_team_id)
-        .map(r => r.result)
-        .slice(0, 5)
-        .reverse() || []
-    if (isValidDate(g.game_status)) {
-      g.home_team.injuries = injuries?.value
-        ?.filter(i => i.team === g.home_team_abbreviation)
-        .map(i => ({
-          playerName: i.player,
-          injury: i.injury,
-          position: i.position,
-          status: i.status,
-        }))
-      g.away_team.injuries = injuries?.value
-        ?.filter(i => i.team === g.away_team_abbreviation)
-        .map(i => ({
-          playerName: i.player,
-          injury: i.injury,
-          position: i.position,
-          status: i.status,
-        }))
-    }
-
-    return g
-  })
-  games.value = data
-  loading.value = false
+const handleMobileDateChange = newDate => {
+  gamesStore.selectedDateMobile = newDate
+  gamesStore.selectedDate = newDate
 }
 
 onMounted(async () => {
-  allowPastVotes.value = import.meta.env.VITE_ALLOW_PAST_VOTES === 'true'
-  await getLast5GamesByTeam()
-  getGames()
-  getInjuryReport()
-
-  const { data } = await supabase.auth.getSession()
-  session.value = data.session
-
-  if (session.value) {
-    userId.value = session.value.user.id
-  } else {
-    userId.value = null
-  }
+  await globalStore.initializeAuth()
+  await gamesStore.initializeGames()
 })
-
-async function getLast5GamesByTeam() {
-  const { data, error } = await supabase.rpc('get_last_5_games_per_team')
-
-  if (error) {
-    console.error('Error fetching last 5 games by team:', error)
-    return
-  }
-
-  teamResultsLast5Games.value = data
-}
-
-async function getInjuryReport() {
-  const injuriesApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-injuries`
-  const injuriesResponse = await fetch(injuriesApiUrl, {
-    headers: {
-      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-    },
-  })
-  injuries.value = await injuriesResponse.json()
-}
 
 function getTeamImageUrl(teamAbbreviation) {
   return new URL(`../assets/${teamAbbreviation}/logo.svg`, import.meta.url).href
@@ -178,70 +49,14 @@ function formatISOTo24HourTime(date) {
 }
 
 function getStatus(game) {
-  if (isValidDate(game.game_status)) {
+  if (gamesStore.isValidDate(game.game_status)) {
     return formatISOTo24HourTime(new Date(game.game_status))
   }
   return game.game_status
 }
 
-function isValidDate(date) {
-  date = new Date(date)
-  return date.toString() !== 'Invalid Date'
-}
-
 async function submitPick(game, picked_team_id) {
-  if (!userId.value) {
-    return
-  }
-  if (!allowPastVotes.value && !isValidDate(game.game_status)) {
-    return
-  }
-  if (new Date(game.game_status) < new Date()) {
-    alert('AH AH. game already started :)')
-    return
-  }
-  const toUpsert = {
-    game_id: game.game_id,
-    picked_team: picked_team_id,
-    user_id: userId.value,
-  }
-
-  if (allowPastVotes.value && game.game_status === 'Final') {
-    const winner =
-      game.home_team_score > game.away_team_score
-        ? game.home_team
-        : game.away_team
-    toUpsert.correct = picked_team_id === winner.id
-  }
-
-  if (game.picks[userId.value]) {
-    toUpsert.id = game.picks[userId.value].pick_id
-  }
-  const { data, error } = await supabase
-    .from('picks')
-    .upsert([toUpsert])
-    .select(
-      '*,user:user_id(full_name),\
-      picked_team_name:picked_team(name)',
-    )
-
-  if (error) {
-    alert(error.message)
-    return
-  }
-
-  games.value = games.value.map(g => {
-    if (g.game_id === game.game_id) {
-      return {
-        ...g,
-        picks: {
-          ...g.picks,
-          [userId.value]: { ...data[0], pick_id: data[0].id },
-        },
-      }
-    }
-    return g
-  })
+  await gamesStore.submitPick(game, picked_team_id, userId.value)
 }
 
 const getClass = (game, teamId) => {
@@ -250,7 +65,7 @@ const getClass = (game, teamId) => {
   let classes = ''
   if (
     session.value &&
-    (isValidDate(game.game_status) || allowPastVotes.value)
+    (gamesStore.isValidDate(game.game_status) || gamesStore.allowPastVotes)
   ) {
     classes = classes.concat(hoverClasses)
   }
@@ -300,7 +115,7 @@ const getClass = (game, teamId) => {
           <div class="hidden md:flex justify-between items-center space-x-3">
             <span
               class="underline hover:scale-110 transition-all cursor-pointer hover:underline-offset-1 rotate-90"
-              @click="goToPreviousDay"
+              @click="gamesStore.goToPreviousDay()"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -322,7 +137,7 @@ const getClass = (game, teamId) => {
             </h2>
             <span
               class="underline hover:scale-110 transition-all cursor-pointer hover:underline-offset-1 -rotate-90"
-              @click="goToNextDay"
+              @click="gamesStore.goToNextDay()"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -345,7 +160,8 @@ const getClass = (game, teamId) => {
           <div class="md:hidden w-full max-w-xs">
             <input
               type="date"
-              v-model="selectedDateMobile"
+              :value="selectedDateMobile"
+              @input="handleMobileDateChange($event.target.value)"
               class="w-full px-6 py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 shadow-sm"
             />
           </div>
@@ -354,7 +170,8 @@ const getClass = (game, teamId) => {
           <div class="hidden md:block">
             <input
               type="date"
-              v-model="selectedDate"
+              :value="selectedDate"
+              @input="handleDateChange($event.target.value)"
               class="px-6 py-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 shadow-sm"
             />
           </div>
@@ -652,7 +469,7 @@ const getClass = (game, teamId) => {
           <!-- Injury Report -->
           <div
             class="px-4 py-2 bg-gray-100 dark:bg-transparent text-sm text-gray-700 dark:text-gray-200 border-t border-gray-200 dark:border-gray-600 flex flex-col md:flex-row"
-            v-show="isValidDate(game.game_status)"
+            v-show="gamesStore.isValidDate(game.game_status)"
           >
             <div class="w-full md:w-1/2 mb-4 md:mb-0 pl-4 text-xs">
               <div class="overflow-x-auto">
