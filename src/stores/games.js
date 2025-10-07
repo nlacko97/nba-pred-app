@@ -210,6 +210,8 @@ export const useGamesStore = defineStore('games', () => {
       }
       return g
     })
+
+    gamesCache.value.set(selectedDate.value, games.value)
   }
 
   const isValidDate = date => {

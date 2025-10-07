@@ -312,7 +312,7 @@ const getClass = (game, teamId) => {
                   </p>
                   <p class="text-xs flex items-center gap-3 font-semibold mt-2">
                     <span
-                      v-for="(wl, index) in game.away_team.record"
+                      v-for="(wl, index) in game.home_team.record"
                       :key="index"
                       :class="{
                         'text-red-600 dark:text-red-400': wl === 'L',
