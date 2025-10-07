@@ -1,17 +1,37 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { supabase } from '../lib/supabaseClient'
+import { useGlobalStore } from './global'
 
 export const useGamesStore = defineStore('games', () => {
+  const globalStore = useGlobalStore()
   const games = ref([])
   const gamesCache = ref(new Map()) // Cache games by date
   const teamResultsLast5Games = ref([])
   const injuries = ref(null)
-  const selectedDate = ref(new Date().toISOString().split('T')[0])
+  // const selectedDate = ref(new Date().toISOString().split('T')[0])
+  const selectedDate = ref('2025-10-21')
   const selectedDateMobile = ref(new Date().toISOString().split('T')[0])
   const loading = ref(false)
   const allowPastVotes = ref(false)
   const initialized = ref(false)
+
+  // Confidence tracking
+  const maxConfidencePerDay = computed(() => games.value.length + 2)
+  const usedConfidenceToday = computed(() => {
+    const userPicks = games.value.flatMap(game =>
+      Object.values(game.picks || {}).filter(
+        pick => pick.user_id === globalStore.userId,
+      ),
+    )
+    return userPicks.reduce(
+      (total, pick) => total + (pick.confidence_score || 1),
+      0,
+    )
+  })
+  const remainingConfidence = computed(() =>
+    Math.max(0, maxConfidencePerDay.value - usedConfidenceToday.value),
+  )
 
   // Watch for selectedDate changes and fetch games
   watch(selectedDate, async (newDate, oldDate) => {
@@ -157,7 +177,12 @@ export const useGamesStore = defineStore('games', () => {
     initialized.value = true
   }
 
-  const submitPick = async (game, picked_team_id, userId) => {
+  const submitPick = async (
+    game,
+    picked_team_id,
+    userId,
+    confidence_score = 1,
+  ) => {
     if (!userId) {
       return
     }
@@ -168,10 +193,25 @@ export const useGamesStore = defineStore('games', () => {
       alert('AH AH. game already started :)')
       return
     }
+
+    // Validate confidence limits
+    const currentPick = game.picks[userId]
+    const currentConfidence = currentPick
+      ? currentPick.confidence_score || 1
+      : 0
+    const confidenceChange = confidence_score - currentConfidence
+    if (remainingConfidence.value - confidenceChange < 0) {
+      alert(
+        `Not enough confidence remaining. You have ${remainingConfidence.value} confidence left, but this would use ${confidenceChange} more.`,
+      )
+      return
+    }
+
     const toUpsert = {
       game_id: game.game_id,
       picked_team: picked_team_id,
       user_id: userId,
+      confidence_score: confidence_score,
     }
 
     if (allowPastVotes.value && game.game_status === 'Final') {
@@ -227,6 +267,9 @@ export const useGamesStore = defineStore('games', () => {
     selectedDateMobile,
     loading,
     allowPastVotes,
+    maxConfidencePerDay,
+    usedConfidenceToday,
+    remainingConfidence,
     setSelectedDate,
     setSelectedDateMobile,
     goToPreviousDay,
