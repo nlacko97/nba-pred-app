@@ -33,10 +33,23 @@ export const useGamesStore = defineStore('games', () => {
     Math.max(0, maxConfidencePerDay.value - usedConfidenceToday.value),
   )
 
+  const selectedSeason = computed(() => {
+    const cutoffDate = new Date('2025-10-10')
+    const selected = new Date(selectedDate.value)
+    return selected < cutoffDate ? 2024 : 2025
+  })
+
   // Watch for selectedDate changes and fetch games
   watch(selectedDate, async (newDate, oldDate) => {
     if (newDate !== oldDate && initialized.value) {
       await getGames()
+    }
+  })
+
+  // Watch for selectedSeason changes and fetch last 5 games
+  watch(selectedSeason, async (newSeason, oldSeason) => {
+    if (newSeason !== oldSeason && initialized.value) {
+      await getLast5GamesByTeam()
     }
   })
 
@@ -77,6 +90,7 @@ export const useGamesStore = defineStore('games', () => {
     loading.value = true
     let { data, error } = await supabase.rpc('get_games_by_date_v2', {
       game_date_v2: selectedDate.value,
+      p_season: selectedSeason.value,
     })
     if (error) {
       console.error('Error fetching games:', error)
@@ -143,7 +157,9 @@ export const useGamesStore = defineStore('games', () => {
   }
 
   const getLast5GamesByTeam = async () => {
-    const { data, error } = await supabase.rpc('get_last_5_games_per_team')
+    const { data, error } = await supabase.rpc('get_last_5_games_per_team', {
+      p_season: selectedSeason.value,
+    })
 
     if (error) {
       console.error('Error fetching last 5 games by team:', error)
@@ -265,6 +281,7 @@ export const useGamesStore = defineStore('games', () => {
     injuries,
     selectedDate,
     selectedDateMobile,
+    selectedSeason,
     loading,
     allowPastVotes,
     maxConfidencePerDay,
