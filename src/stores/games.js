@@ -223,7 +223,7 @@ export const useGamesStore = defineStore('games', () => {
     }
 
     if (game.picks[userId]) {
-      toUpsert.id = game.picks[userId].pick_id
+      toUpsert.id = game.picks[userId].id || game.picks[userId].pick_id
     }
     const { data, error } = await supabase
       .from('picks')

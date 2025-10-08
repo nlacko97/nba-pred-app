@@ -32,9 +32,9 @@ const getStarClass = starNumber => {
     'text-gray-300 dark:text-gray-600': !isActive || props.disabled,
     'cursor-pointer': !props.disabled,
     'cursor-not-allowed': props.disabled,
-    'hover:scale-105': !props.disabled,
-    'active:scale-95': !props.disabled,
-    'transition-all duration-150': true,
+    'hover:text-yellow-500': !props.disabled,
+    'transition-colors duration-150': true,
+    'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 rounded': true,
   }
 }
 
