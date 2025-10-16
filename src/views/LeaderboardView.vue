@@ -1,8 +1,7 @@
 <script setup>
-import { computed, onMounted, nextTick, watch } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useLeaderboardStore } from '../stores/leaderboard'
 import { useGlobalStore } from '../stores/global'
-import { supabase } from '../lib/supabaseClient'
 import PerformanceChart from '../components/PerformanceChart.vue'
 import TeamPerformance from '../components/TeamPerformance.vue'
 
@@ -22,54 +21,10 @@ const isLeaderboardPlayoff = computed(
   () => leaderboardStore.isLeaderboardPlayoff,
 )
 
-window.handleSignInWithGoogle = handleSignInWithGoogle
-
 onMounted(async () => {
-  await globalStore.initializeAuth()
-
   // Only initialize leaderboard if user is logged in
   if (session.value) {
     await leaderboardStore.initializeLeaderboard()
-  } else {
-    // Initialize Google Sign-In only when not logged in
-    const initializeGoogleSignIn = () => {
-      if (window.google && window.google.accounts) {
-        try {
-          window.google.accounts.id.initialize({
-            client_id: getGoogleClientId(),
-            callback: handleSignInWithGoogle,
-            auto_select: false,
-            cancel_on_tap_outside: true,
-          })
-          window.google.accounts.id.renderButton(
-            document.querySelector('.g_id_signin'),
-            {
-              theme: 'outline',
-              size: 'large',
-              type: 'standard',
-              text: 'signin_with',
-              shape: 'rectangular',
-              logo_alignment: 'left',
-            },
-          )
-        } catch (error) {
-          console.error('Google Sign-In initialization error:', error)
-        }
-      }
-    }
-
-    nextTick(() => {
-      initializeGoogleSignIn()
-    })
-
-    const checkGoogleLoaded = () => {
-      if (window.google && window.google.accounts) {
-        initializeGoogleSignIn()
-      } else {
-        setTimeout(checkGoogleLoaded, 100)
-      }
-    }
-    checkGoogleLoaded()
   }
 })
 
@@ -79,30 +34,6 @@ watch(session, async (newSession, oldSession) => {
     await leaderboardStore.initializeLeaderboard()
   }
 })
-
-async function handleSignInWithGoogle(response) {
-  const { error } = await supabase.auth.signInWithIdToken({
-    provider: 'google',
-    token: response.credential,
-  })
-
-  if (error) {
-    console.error('Google Sign-In Error:', error)
-  }
-}
-
-async function signOut() {
-  try {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
-  } catch (error) {
-    alert(error.message)
-  }
-}
-
-function getGoogleClientId() {
-  return import.meta.env.VITE_GOOGLE_CLIENT_ID
-}
 </script>
 
 <template>
@@ -226,7 +157,7 @@ function getGoogleClientId() {
       </div>
     </section>
 
-    <!-- Leaderboard / Auth States -->
+    <!-- Leaderboard -->
     <section v-if="session" class="card overflow-hidden">
       <div class="card-header">
         <div>
@@ -548,53 +479,17 @@ function getGoogleClientId() {
           </div>
         </div>
       </div>
-
-      <!-- Sign Out -->
-      <div class="p-4 flex justify-center">
-        <button @click="signOut" class="btn btn-muted">🚪 Sign Out</button>
-      </div>
     </section>
 
     <!-- Login Prompt for non-logged-in users -->
     <section v-if="!session" class="card">
       <div class="card-body">
-        <div class="text-center mb-4">
-          <h1 class="text-3xl font-bold mb-1">🏆 Leaderboard</h1>
-          <p class="text-gray-600 dark:text-gray-300">
-            Track your NBA prediction performance
+        <div class="text-center">
+          <h1 class="text-3xl font-bold mb-4">🏆 Leaderboard</h1>
+          <p class="text-lg text-gray-600 dark:text-gray-300 mb-6">
+            Please log in using the button in the top navigation to view the
+            leaderboard
           </p>
-        </div>
-        <div class="flex justify-center">
-          <div class="w-full max-w-md">
-            <div
-              class="card h-80 flex flex-col items-center justify-center gap-6"
-            >
-              <p class="font-light text-lg text-center">
-                Please log in to view the leaderboard 🏆
-              </p>
-              <div id="google-signin-container">
-                <div
-                  id="g_id_onload"
-                  :data-client_id="getGoogleClientId()"
-                  data-context="signin"
-                  data-ux_mode="popup"
-                  data-callback="handleSignInWithGoogle"
-                  data-auto_prompt="false"
-                  data-use_fedcm_for_prompt="true"
-                ></div>
-                <div
-                  class="g_id_signin"
-                  ref="googleSignInButton"
-                  data-type="standard"
-                  data-shape="rectangular"
-                  data-theme="outline"
-                  data-text="signin_with"
-                  data-size="large"
-                  data-logo_alignment="left"
-                ></div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </section>

@@ -41,7 +41,6 @@ const handleMobileDateChange = newDate => {
 }
 
 onMounted(async () => {
-  await globalStore.initializeAuth()
   await gamesStore.initializeGames()
 })
 

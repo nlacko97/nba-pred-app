@@ -13,7 +13,7 @@ const isActive = path => route.path === path
 
 <template>
   <aside
-    class="hidden md:block w-60 shrink-0 h-[calc(100vh-64px)] sticky top-16 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
+    class="hidden mt-4 md:block w-60 shrink-0 h-[calc(100vh-64px)] sticky top-16 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
   >
     <div class="px-3 py-4">
       <nav class="space-y-1">
