@@ -9,8 +9,8 @@ export const useGamesStore = defineStore('games', () => {
   const gamesCache = ref(new Map()) // Cache games by date
   const teamResultsLast5Games = ref([])
   const injuries = ref(null)
-  // const selectedDate = ref(new Date().toISOString().split('T')[0])
-  const selectedDate = ref('2025-10-21')
+  const selectedDate = ref(new Date().toISOString().split('T')[0])
+  // const selectedDate = ref('2025-10-21')
   const selectedDateMobile = ref(new Date().toISOString().split('T')[0])
   const loading = ref(false)
   const allowPastVotes = ref(false)
