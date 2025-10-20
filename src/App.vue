@@ -1,13 +1,18 @@
 <template>
-  <!-- <h1>Hello App!</h1>
-  <p>
-    <strong>Current route path:</strong> {{ $route.fullPath }}
-  </p>
-  <nav>
-    <RouterLink to="/">Go to Home</RouterLink>
-    <RouterLink to="/user">Go to user</RouterLink>
-  </nav> -->
-  <main>
-    <RouterView />
-  </main>
+  <div class="min-h-screen">
+    <DashboardTopBar />
+    <div class="container mx-auto px-4">
+      <div class="grid grid-cols-1 md:grid-cols-[240px_minmax(0,1fr)] gap-6">
+        <DashboardSidebar />
+        <main class="min-w-0">
+          <RouterView />
+        </main>
+      </div>
+    </div>
+  </div>
 </template>
+
+<script setup>
+import DashboardTopBar from './components/DashboardTopBar.vue'
+import DashboardSidebar from './components/DashboardSidebar.vue'
+</script>

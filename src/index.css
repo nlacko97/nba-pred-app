@@ -2,3 +2,159 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #app {
+    @apply h-full;
+  }
+  body {
+    @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 antialiased;
+  }
+}
+
+@layer components {
+  .card {
+    @apply relative bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm;
+  }
+  .panel {
+    @apply relative rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden transition-all duration-300 shadow-sm hover:shadow-lg transform-gpu hover:-translate-y-0.5 ring-1 ring-transparent hover:ring-gray-200 dark:hover:ring-gray-700;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.96) 0%,
+      rgba(249, 250, 251, 0.96) 100%
+    );
+  }
+  .dark .panel {
+    background: linear-gradient(
+      135deg,
+      rgba(17, 24, 39, 0.95) 0%,
+      rgba(31, 41, 55, 0.95) 100%
+    );
+  }
+  .panel__watermark {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-repeat: no-repeat;
+    background-position: right -10px center;
+    background-size: 140px 140px;
+    opacity: 0.08;
+    pointer-events: none;
+    filter: grayscale(100%);
+    mix-blend-mode: multiply;
+  }
+  .dark .panel__watermark {
+    opacity: 0.12;
+    mix-blend-mode: screen;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      hsl(220 14% 96% / 0) 0%,
+      hsl(220 90% 55% / 0.18) 30%,
+      hsl(260 90% 60% / 0.18) 70%,
+      hsl(220 14% 96% / 0) 100%
+    );
+  }
+  .dark .card::before {
+    background: linear-gradient(
+      90deg,
+      hsla(0, 0%, 100%, 0.03) 0%,
+      hsla(0, 0%, 100%, 0.12) 50%,
+      hsla(0, 0%, 100%, 0.03) 100%
+    );
+  }
+  .card-header {
+    @apply border-b border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center justify-between;
+  }
+  .card-body {
+    @apply p-6;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center rounded-lg font-medium text-sm px-4 py-2 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ring-offset-0 ring-offset-white dark:ring-offset-gray-900;
+  }
+  .btn-primary {
+    @apply text-white;
+    background: linear-gradient(180deg, hsl(223 86% 63%), hsl(227 83% 58%));
+  }
+  .btn-primary:hover {
+    filter: brightness(0.98);
+  }
+  .dark .btn-primary {
+    background: linear-gradient(180deg, hsl(223 86% 58%), hsl(227 83% 52%));
+  }
+  .btn-ghost {
+    @apply text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800;
+  }
+  .btn-muted {
+    @apply bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-100;
+  }
+
+  .icon-btn {
+    @apply p-2 rounded-md text-gray-600 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500;
+  }
+  .icon-btn:hover {
+    background: hsl(220 14% 96%);
+  }
+  .dark .icon-btn:hover {
+    background: hsl(220 14% 20%);
+  }
+
+  .input {
+    @apply bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500;
+  }
+
+  .kpi {
+    @apply relative rounded-xl p-5 border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden;
+  }
+  .kpi::after {
+    content: none;
+  }
+  .dark .kpi::after {
+    content: none;
+  }
+
+  .pill {
+    @apply text-xs font-medium px-2.5 py-1 rounded-full;
+  }
+  .pill-green {
+    @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
+  }
+  .pill-red {
+    @apply bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200;
+  }
+  .pill-blue {
+    color: hsl(226 70% 40%);
+    background: hsl(226 100% 96%);
+  }
+  .dark .pill-blue {
+    color: hsl(210 20% 92%);
+    background: hsl(220 15% 18%);
+  }
+  .pill-gray {
+    @apply bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300;
+  }
+
+  .confidence-sidebar {
+    background: linear-gradient(
+      135deg,
+      rgba(59, 130, 246, 0.05) 0%,
+      rgba(168, 85, 247, 0.05) 100%
+    );
+  }
+  .dark .confidence-sidebar {
+    background: linear-gradient(
+      135deg,
+      rgba(59, 130, 246, 0.1) 0%,
+      rgba(168, 85, 247, 0.1) 100%
+    );
+  }
+}
