@@ -49,9 +49,9 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
     }
 
     let { data: userWithSummary, error } = await supabase.rpc(
-      'get_user_picks_summary',
+      'get_leaderboard_stats',
       {
-        for_postseason: postseason,
+        p_postseason: postseason,
         p_season: selectedSeason.value,
       },
     )
