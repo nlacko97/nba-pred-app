@@ -55,19 +55,6 @@ const confidenceBadge = computed(() => {
   }
 })
 
-const getStarClass = starNumber => {
-  const isActive = starNumber <= (hoverRating.value || props.modelValue)
-  return {
-    'text-blue-400': starNumber === 1 && isActive && !props.disabled,
-    'text-purple-400': starNumber === 2 && isActive && !props.disabled,
-    'text-amber-400': starNumber === 3 && isActive && !props.disabled,
-    'text-gray-200 dark:text-gray-700': !isActive || props.disabled,
-    'cursor-pointer': !props.disabled,
-    'cursor-not-allowed': props.disabled,
-    'transition-all duration-200': true,
-  }
-}
-
 const handleMouseEnter = starNumber => {
   if (!props.disabled) {
     hoverRating.value = starNumber
@@ -95,22 +82,54 @@ const handleClick = starNumber => {
       >
     </div>
 
-    <div class="flex gap-3 justify-center">
-      <button
-        v-for="star in stars"
-        :key="star"
-        :class="getStarClass(star)"
-        :disabled="disabled"
-        @mouseenter="handleMouseEnter(star)"
-        @mouseleave="handleMouseLeave"
-        @click="handleClick(star)"
-        class="text-5xl p-1 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400 dark:focus:ring-offset-gray-900 rounded-lg transition-all duration-200"
-        type="button"
+    <!-- Segmented control -->
+    <div
+      class="flex justify-center"
+      role="radiogroup"
+      aria-label="Confidence level"
+    >
+      <div
+        class="inline-flex items-center gap-1 rounded-full border border-gray-200 dark:border-gray-700 p-1 bg-white dark:bg-gray-900 shadow-sm"
       >
-        ★
-      </button>
+        <button
+          v-for="star in stars"
+          :key="star"
+          type="button"
+          :aria-checked="(hoverRating || modelValue) === star"
+          role="radio"
+          :disabled="disabled"
+          @mouseenter="handleMouseEnter(star)"
+          @mouseleave="handleMouseLeave"
+          @click="handleClick(star)"
+          :class="[
+            'px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 dark:focus:ring-offset-gray-900',
+            disabled ? 'cursor-not-allowed opacity-60' : 'hover:shadow',
+            (hoverRating || modelValue) === 1 && star === 1
+              ? 'text-white bg-gradient-to-r from-blue-500 to-blue-600 shadow'
+              : '',
+            (hoverRating || modelValue) === 2 && star === 2
+              ? 'text-white bg-gradient-to-r from-purple-500 to-purple-600 shadow'
+              : '',
+            (hoverRating || modelValue) === 3 && star === 3
+              ? 'text-white bg-gradient-to-r from-amber-500 to-amber-600 shadow'
+              : '',
+            (hoverRating || modelValue) !== star
+              ? 'text-gray-700 dark:text-gray-300'
+              : '',
+          ]"
+        >
+          <span class="inline-flex items-center gap-1">
+            <span class="font-semibold tabular-nums">{{ star }}</span>
+            <span class="text-amber-400">★</span>
+            <span class="hidden sm:inline text-xs opacity-80">{{
+              star === 1 ? 'Low' : star === 2 ? 'Medium' : 'High'
+            }}</span>
+          </span>
+        </button>
+      </div>
     </div>
 
+    <!-- Descriptor badge -->
     <div
       :class="[
         'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-center',

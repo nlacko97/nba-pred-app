@@ -16,14 +16,14 @@
 
 @layer components {
   .card {
-    @apply relative bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden;
+    @apply relative bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm;
   }
   .panel {
-    @apply relative rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden transition-all duration-300;
+    @apply relative rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden transition-all duration-300 shadow-sm hover:shadow-lg transform-gpu hover:-translate-y-0.5 ring-1 ring-transparent hover:ring-gray-200 dark:hover:ring-gray-700;
     background: linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.95) 0%,
-      rgba(249, 250, 251, 0.95) 100%
+      rgba(255, 255, 255, 0.96) 0%,
+      rgba(249, 250, 251, 0.96) 100%
     );
   }
   .dark .panel {
@@ -38,15 +38,15 @@
     position: absolute;
     inset: 0;
     background-repeat: no-repeat;
-    background-position: right -20px center;
-    background-size: 120px 120px;
-    opacity: 0.06;
+    background-position: right -10px center;
+    background-size: 140px 140px;
+    opacity: 0.08;
     pointer-events: none;
     filter: grayscale(100%);
     mix-blend-mode: multiply;
   }
   .dark .panel__watermark {
-    opacity: 0.1;
+    opacity: 0.12;
     mix-blend-mode: screen;
   }
   .card::before {

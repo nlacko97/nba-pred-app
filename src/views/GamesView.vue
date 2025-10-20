@@ -105,11 +105,9 @@ const getClass = (game, teamId) => {
   const isGameActive =
     session.value &&
     (gamesStore.isValidDate(game.game_status) || gamesStore.allowPastVotes)
-  const hasUserPick = pick && session.value
-  const hoverClasses =
-    isGameActive
-      ? `hover:cursor-pointer dark:hover:bg-blue-900/40 hover:border-blue-300 dark:hover:border-blue-700 `
-      : ''
+  const hoverClasses = isGameActive
+    ? `hover:cursor-pointer dark:hover:bg-blue-900/40 hover:border-blue-300 dark:hover:border-blue-700 `
+    : ''
 
   let classes = hoverClasses
 
@@ -306,6 +304,14 @@ const getClass = (game, teamId) => {
               @click="submitPick(game, game.away_team_id)"
             >
               <span
+                v-if="
+                  game.picks[userId] &&
+                  game.picks[userId].picked_team === game.away_team_id
+                "
+                class="absolute top-2 left-2 pill pill-blue z-20"
+                >Your Pick</span
+              >
+              <span
                 class="panel__watermark"
                 :style="{
                   backgroundImage: `url(${getTeamImageUrl(game.away_team_abbreviation)})`,
@@ -365,6 +371,14 @@ const getClass = (game, teamId) => {
               ]"
               @click="submitPick(game, game.home_team_id)"
             >
+              <span
+                v-if="
+                  game.picks[userId] &&
+                  game.picks[userId].picked_team === game.home_team_id
+                "
+                class="absolute top-2 left-2 pill pill-blue z-20"
+                >Your Pick</span
+              >
               <span
                 class="panel__watermark"
                 :style="{
