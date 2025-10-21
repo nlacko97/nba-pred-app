@@ -73,7 +73,7 @@ async function fetchGamesFromYesterday() {
   let counter = 1
   const games = []
   do {
-    let url = `https://api.balldontlie.io/v1/games?seasons[]=2024&dates[]=${formatYesterdayToDateString()}&per_page=100`
+    let url = `https://api.balldontlie.io/v1/games?seasons[]=2025&dates[]=${formatYesterdayToDateString()}&per_page=100`
     if (cursor) {
       url = url.concat(`&cursor=${cursor}`)
     }
