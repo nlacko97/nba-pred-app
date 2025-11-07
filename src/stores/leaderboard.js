@@ -9,7 +9,7 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
   const yesterdayReport = ref(null)
   const teams = ref([])
   const loadingTeams = ref(false)
-  const selectedSeason = ref('2024')
+  const selectedSeason = ref('2025')
   const expandedUsers = ref(new Set())
   const isLeaderboardPlayoff = ref(true)
   const initialized = ref(false)

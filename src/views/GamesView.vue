@@ -68,6 +68,18 @@ function getStatus(game) {
     return formatISOTo24HourTime(new Date(game.game_status))
   }
   return game.game_status
+  }
+ 
+function isCupGame(game) {
+  return (
+    !!game.stage && typeof game.stage === 'string' && game.stage.toUpperCase().includes('NBA CUP')
+  )
+}
+
+function cupStageDetail(stage) {
+  if (!stage || typeof stage !== 'string') return ''
+  const cleaned = stage.replace(/nba\s*cup/ig, '').trim()
+  return cleaned
 }
 
 async function submitPick(game, picked_team_id) {
@@ -134,6 +146,12 @@ const getClass = (game, teamId) => {
   }
 
   return classes
+}
+function onCancelClick(game) {
+  if (!gamesStore.isValidDate(game.game_status) || new Date(game.game_status) < new Date()) return
+  if (confirm('Cancel your pick for this game?')) {
+    gamesStore.cancelPick(game, userId.value)
+  }
 }
 </script>
 
@@ -269,7 +287,7 @@ const getClass = (game, teamId) => {
       <div
         v-for="(game, index) in games"
         :key="index"
-        class="card overflow-hidden"
+        :class="['card overflow-hidden', isCupGame(game) ? 'cup-card' : '']"
       >
         <!-- Game Header -->
         <div class="card-header">
@@ -284,8 +302,16 @@ const getClass = (game, teamId) => {
           </p>
         </div>
 
+        <div v-if="isCupGame(game)" class="cup-header">
+          <!-- Trophy icon only -->
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M7 4a1 1 0 0 0-1 1v2a4 4 0 0 1-3 3.873V12a5 5 0 0 0 5 5h3v2H9a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2h-2v-2h3a5 5 0 0 0 5-5v-1.127A4 4 0 0 1 18 7V5a1 1 0 0 0-1-1H7zm1 2h8v1a2 2 0 0 0 2 2h1.063A2 2 0 0 1 18 11.873V12a3 3 0 0 1-3 3H9a3 3 0 0 1-3-3v-.127A2 2 0 0 1 4.937 9H6a2 2 0 0 0 2-2V6z"/>
+          </svg>
+          <span class="cup-badge">NBA Cup</span>
+          <span v-if="cupStageDetail(game.stage)">• {{ cupStageDetail(game.stage) }}</span>
+        </div>
         <div
-          v-if="game.stage"
+          v-else-if="game.stage"
           class="px-6 py-3 text-center text-sm text-gray-500 dark:text-gray-300 border-b border-gray-200 dark:border-gray-800"
         >
           {{ game.stage }}
@@ -300,6 +326,7 @@ const getClass = (game, teamId) => {
               :class="[
                 'panel transition-all duration-300 flex-1 flex flex-col md:flex-row md:items-center p-5 relative',
                 getClass(game, game.away_team_id),
+                isCupGame(game) ? 'cup-panel' : ''
               ]"
               @click="submitPick(game, game.away_team_id)"
             >
@@ -311,6 +338,21 @@ const getClass = (game, teamId) => {
                 class="absolute top-2 left-2 pill pill-blue z-20"
                 >Your Pick</span
               >
+              <button
+                v-if="
+                  game.picks[userId] &&
+                  game.picks[userId].picked_team === game.away_team_id &&
+                  gamesStore.isValidDate(game.game_status)
+                "
+                class="absolute top-2 right-2 z-20 text-[11px] px-2 py-1 rounded-md border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 bg-white/70 dark:bg-gray-900/50 hover:bg-red-50 dark:hover:bg-red-900/20 backdrop-blur select-none"
+                :class="[
+                  (!gamesStore.isValidDate(game.game_status) || new Date(game.game_status) < new Date()) ? 'opacity-50 cursor-not-allowed' : ''
+                ]"
+                @click.stop="onCancelClick(game)"
+                aria-label="Cancel pick"
+              >
+                Cancel
+              </button>
               <span
                 class="panel__watermark"
                 :style="{
@@ -320,7 +362,7 @@ const getClass = (game, teamId) => {
               <img
                 :src="getTeamImageUrl(game.away_team_abbreviation)"
                 alt="away-logo"
-                class="w-14 h-14 object-contain mb-3 md:mb-0 md:mr-4"
+                :class="['w-14 h-14 object-contain mb-3 md:mb-0 md:mr-4', isCupGame(game) ? 'cup-logo' : '']"
               />
               <div class="flex flex-col flex-1 relative z-10">
                 <p class="font-bold text-lg leading-tight">
@@ -368,6 +410,7 @@ const getClass = (game, teamId) => {
               :class="[
                 'panel transition-all duration-300 flex-1 flex flex-col md:flex-row md:items-center p-5 relative',
                 getClass(game, game.home_team_id),
+                isCupGame(game) ? 'cup-panel' : ''
               ]"
               @click="submitPick(game, game.home_team_id)"
             >
@@ -379,6 +422,21 @@ const getClass = (game, teamId) => {
                 class="absolute top-2 left-2 pill pill-blue z-20"
                 >Your Pick</span
               >
+              <button
+                v-if="
+                  game.picks[userId] &&
+                  game.picks[userId].picked_team === game.home_team_id
+                "
+                class="absolute top-2 right-2 z-20 text-[11px] px-2 py-1 rounded-md border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 bg-white/70 dark:bg-gray-900/50 hover:bg-red-50 dark:hover:bg-red-900/20 backdrop-blur select-none"
+                :class="[
+                  (!gamesStore.isValidDate(game.game_status) || new Date(game.game_status) < new Date()) ? 'opacity-50 cursor-not-allowed' : ''
+                ]"
+                :disabled="!gamesStore.isValidDate(game.game_status) || new Date(game.game_status) < new Date()"
+                @click.stop="onCancelClick(game)"
+                aria-label="Cancel pick"
+              >
+                Cancel
+              </button>
               <span
                 class="panel__watermark"
                 :style="{
@@ -388,7 +446,7 @@ const getClass = (game, teamId) => {
               <img
                 :src="getTeamImageUrl(game.home_team_abbreviation)"
                 alt="home-logo"
-                class="w-14 h-14 object-contain mb-3 md:mb-0 md:mr-4"
+                :class="['w-14 h-14 object-contain mb-3 md:mb-0 md:mr-4', isCupGame(game) ? 'cup-logo' : '']"
               />
               <div class="flex flex-col flex-1 relative z-10">
                 <p class="font-bold text-lg leading-tight">
@@ -435,7 +493,7 @@ const getClass = (game, teamId) => {
           <!-- Confidence Selector Sidebar (Desktop) -->
           <div
             v-if="session && game.picks[userId]"
-            class="hidden lg:flex flex-col justify-center px-6 py-6 border-l border-gray-200 dark:border-gray-800 bg-gradient-to-b from-blue-50/50 to-purple-50/50 dark:from-blue-950/30 dark:to-purple-950/30"
+            :class="['hidden lg:flex flex-col justify-center px-6 py-6 border-l border-gray-200 dark:border-gray-800 bg-gradient-to-b from-blue-50/50 to-purple-50/50 dark:from-blue-950/30 dark:to-purple-950/30', isCupGame(game) ? 'cup-side' : '']"
           >
             <ConfidenceSelector
               :model-value="game.picks[userId].confidence_score || 1"
@@ -451,7 +509,7 @@ const getClass = (game, teamId) => {
         <!-- Confidence Selector Mobile -->
         <div
           v-if="session && game.picks[userId]"
-          class="lg:hidden px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-950/30 dark:to-purple-950/30"
+          :class="['lg:hidden px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-950/30 dark:to-purple-950/30', isCupGame(game) ? 'cup-side' : '']"
         >
           <ConfidenceSelector
             :model-value="game.picks[userId].confidence_score || 1"

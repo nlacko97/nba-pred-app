@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient'
 
 export const useLeaderboardStatsStore = defineStore('leaderboardStats', () => {
   const stats = ref([])
-  const selectedSeason = ref('2024')
+  const selectedSeason = ref('2025')
   const isPostseason = ref(false)
   const loading = ref(false)
   const cache = ref({})

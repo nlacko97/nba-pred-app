@@ -73,6 +73,10 @@
   }
   .card-header {
     @apply border-b border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center justify-between;
+    background: linear-gradient(180deg, rgba(59,130,246,0.04), rgba(168,85,247,0.03));
+  }
+  .dark .card-header {
+    background: linear-gradient(180deg, rgba(59,130,246,0.08), rgba(168,85,247,0.06));
   }
   .card-body {
     @apply p-6;
@@ -156,5 +160,70 @@
       rgba(59, 130, 246, 0.1) 0%,
       rgba(168, 85, 247, 0.1) 100%
     );
+  }
+
+  /* NBA Cup special styling */
+  .cup-card {
+    @apply ring-2 ring-offset-2 ring-emerald-400/25 dark:ring-fuchsia-400/25;
+    position: relative;
+  }
+  .cup-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(135deg, rgba(16,185,129,0.05), rgba(217,70,239,0.05)),
+      repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 10px);
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+  .dark .cup-card::after {
+    background:
+      linear-gradient(135deg, rgba(16,185,129,0.07), rgba(217,70,239,0.07)),
+      repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0, rgba(255,255,255,0.02) 2px, transparent 2px, transparent 10px);
+    mix-blend-mode: soft-light;
+  }
+
+  .cup-header {
+    @apply px-6 py-3 flex items-center justify-center gap-2 font-extrabold uppercase tracking-wider text-xs text-white;
+    background: linear-gradient(90deg, hsl(160 84% 36%), hsl(296 74% 43%));
+  }
+  .cup-badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest;
+    color: #fff;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+
+  .cup-panel {
+    @apply border-2;
+    border-color: hsla(296, 74%, 45%, 0.22);
+    box-shadow:
+      0 0 0 2px hsla(296,74%,45%,0.05) inset,
+      0 8px 20px -12px hsla(296,74%,45%,0.18);
+  }
+  .dark .cup-panel {
+    border-color: hsla(296,74%,55%,0.10);
+    box-shadow:
+      0 0 0 1px hsla(296,74%,55%,0.05) inset,
+      0 0 8px rgba(217,70,239,0.12);
+  }
+
+  .cup-logo {
+    filter:
+      drop-shadow(0 4px 12px rgba(217,70,239,0.28))
+      drop-shadow(0 2px 4px rgba(16,185,129,0.2));
+  }
+  .dark .cup-logo {
+    filter:
+      drop-shadow(0 4px 10px rgba(217,70,239,0.12))
+      drop-shadow(0 2px 3px rgba(16,185,129,0.10));
+  }
+
+  .cup-side {
+    background: linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(217,70,239,0.12) 100%);
+  }
+  .dark .cup-side {
+    background: linear-gradient(135deg, rgba(16,185,129,0.10) 0%, rgba(217,70,239,0.10) 100%);
   }
 }

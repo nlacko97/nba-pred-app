@@ -18,8 +18,8 @@ const localSeason = ref(null)
 const localPostseason = ref(null)
 
 const seasons = [
-  { value: '2024', label: '2024-25' },
   { value: '2025', label: '2025-26' },
+  { value: '2024', label: '2024-25' },
 ]
 
 const handleSeasonChange = season => {
@@ -29,7 +29,7 @@ const handleSeasonChange = season => {
 
 const handleModeChange = postseason => {
   localPostseason.value = postseason
-  const season = localSeason.value ?? '2024'
+  const season = localSeason.value ?? '2025'
   emit('update-filters', season, postseason)
 }
 </script>

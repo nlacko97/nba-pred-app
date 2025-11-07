@@ -270,6 +270,41 @@ export const useGamesStore = defineStore('games', () => {
     gamesCache.value.set(selectedDate.value, games.value)
   }
 
+  const cancelPick = async (game, userId) => {
+    if (!userId) return
+    if (!allowPastVotes.value && !isValidDate(game.game_status)) return
+    if (new Date(game.game_status) < new Date()) {
+      alert('AH AH. game already started :)')
+      return
+    }
+    const pick = game.picks[userId]
+    if (!pick) return
+    const pickId = pick.id || pick.pick_id
+    const { data: deletedRows, error } = await supabase
+      .from('picks')
+      .delete()
+      .eq('id', pickId)
+      .eq('user_id', userId)
+      .select('id')
+    if (error) {
+      alert(error.message)
+      return
+    }
+    if (!deletedRows || deletedRows.length === 0) {
+      alert('Could not cancel pick. You may not have permission or the pick no longer exists.')
+      return
+    }
+    games.value = games.value.map(g => {
+      if (g.game_id === game.game_id) {
+        const rest = { ...(g.picks || {}) }
+        delete rest[userId]
+        return { ...g, picks: rest }
+      }
+      return g
+    })
+    gamesCache.value.set(selectedDate.value, games.value)
+  }
+
   const isValidDate = date => {
     date = new Date(date)
     return date.toString() !== 'Invalid Date'
@@ -296,6 +331,7 @@ export const useGamesStore = defineStore('games', () => {
     getInjuryReport,
     initializeGames,
     submitPick,
+    cancelPick,
     isValidDate,
   }
 })
