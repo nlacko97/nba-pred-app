@@ -425,7 +425,8 @@ function onCancelClick(game) {
               <button
                 v-if="
                   game.picks[userId] &&
-                  game.picks[userId].picked_team === game.home_team_id
+                  game.picks[userId].picked_team === game.home_team_id &&
+                  gamesStore.isValidDate(game.game_status)
                 "
                 class="absolute top-2 right-2 z-20 text-[11px] px-2 py-1 rounded-md border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 bg-white/70 dark:bg-gray-900/50 hover:bg-red-50 dark:hover:bg-red-900/20 backdrop-blur select-none"
                 :class="[
