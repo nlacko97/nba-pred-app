@@ -9,6 +9,7 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
   const lastGameDate = ref(null)
   const initialized = ref(false)
   const cache = ref({}) // Cache results by game date
+  const lastFetchDate = ref(null) // Track when data was last fetched
 
   // Find the most recent date with completed games
   const findLastGameDate = async () => {
@@ -133,8 +134,30 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
     return dayResults
   }
 
+  // Check if cache is stale (new day has started)
+  const isCacheStale = () => {
+    if (!lastFetchDate.value) return true
+
+    const today = new Date().toISOString().split('T')[0]
+    return lastFetchDate.value !== today
+  }
+
+  // Clear stale cache
+  const clearStaleCache = () => {
+    cache.value = {}
+    allPlayerResults.value = []
+    userResults.value = null
+    initialized.value = false
+    lastGameDate.value = null
+  }
+
   // Initialize and fetch all data
   const initializeDailyResults = async userId => {
+    // Check if cache is stale (new day)
+    if (isCacheStale()) {
+      clearStaleCache()
+    }
+
     // Return cached data if already initialized
     if (initialized.value && allPlayerResults.value.length > 0) {
       // Update user results if userId changed
@@ -165,6 +188,7 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
       // Derive user results from all results to ensure consistent data (including points)
       userResults.value = allRes.find(p => p.user_id === userId) || null
       initialized.value = true
+      lastFetchDate.value = new Date().toISOString().split('T')[0]
     } catch (err) {
       console.error('Error initializing daily results:', err)
     } finally {
@@ -192,6 +216,12 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
     })
   })
 
+  // Force refresh data (useful for manual refresh or when detecting stale data)
+  const refreshDailyResults = async userId => {
+    clearStaleCache()
+    await initializeDailyResults(userId)
+  }
+
   return {
     userResults,
     allPlayerResults,
@@ -200,5 +230,7 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
     userRank,
     formattedDate,
     initializeDailyResults,
+    refreshDailyResults,
+    isCacheStale,
   }
 })
