@@ -5,6 +5,8 @@ import { useGamesStore } from '../stores/games'
 import { useGlobalStore } from '../stores/global'
 import ConfidenceSelector from '../components/ConfidenceSelector.vue'
 
+import TopPerformers from '../components/TopPerformers.vue'
+
 const gamesStore = useGamesStore()
 const globalStore = useGlobalStore()
 
@@ -157,6 +159,9 @@ function onCancelClick(game) {
 
 <template>
   <div class="py-4 space-y-6">
+    <!-- Top Performers Section -->
+    <TopPerformers />
+
     <!-- Date Picker Card -->
     <section class="card">
       <div class="card-body">
