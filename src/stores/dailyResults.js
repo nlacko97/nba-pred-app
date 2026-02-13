@@ -11,6 +11,40 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
   const cache = ref({}) // Cache results by game date
   const lastFetchDate = ref(null) // Track when data was last fetched
 
+  const ensureUserStats = (userStats, pick, profileMap = {}) => {
+    const userId = pick.user_id
+    const profile = profileMap[userId] || pick.profiles
+    if (!userStats[userId]) {
+      userStats[userId] = {
+        user_id: userId,
+        user_full_name: profile?.full_name || 'Unknown',
+        username: profile?.username || 'Unknown',
+        avatar_url: profile?.avatar_url,
+        total_picks: 0,
+        correct_picks: 0,
+        points: 0,
+      }
+    }
+  }
+
+  const getProfileMap = async userIds => {
+    if (!userIds.length) return {}
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, username, avatar_url')
+      .in('id', userIds)
+
+    if (error) {
+      console.error('Error fetching profiles for daily results:', error)
+      return {}
+    }
+
+    return (data || []).reduce((acc, profile) => {
+      acc[profile.id] = profile
+      return acc
+    }, {})
+  }
+
   // Find the most recent date with completed games
   const findLastGameDate = async () => {
     const today = new Date()
@@ -27,7 +61,21 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
         .eq('status', 'Final')
         .limit(1)
 
-      if (!error && data && data.length > 0) {
+      let hasResolvedAllStarMarket = false
+      const { data: marketRows, error: marketError } = await supabase
+        .from('all_star_markets')
+        .select('id')
+        .eq('event_date', dateStr)
+        .eq('status', 'resolved')
+        .limit(1)
+
+      if (!marketError && marketRows && marketRows.length > 0) {
+        hasResolvedAllStarMarket = true
+      } else if (marketError && marketError.code !== '42P01') {
+        console.error('Error fetching all-star market date:', marketError)
+      }
+
+      if ((!error && data && data.length > 0) || hasResolvedAllStarMarket) {
         lastGameDate.value = dateStr
         return dateStr
       }
@@ -59,52 +107,97 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
     }
 
     const gameIds = games?.map(g => g.id) || []
-    if (gameIds.length === 0) return []
 
-    // Fetch all picks for these games with user info and confidence scores
-    const { data: picks, error: picksError } = await supabase
-      .from('picks')
-      .select(
-        `
-        user_id,
-        confidence_score,
-        correct,
-        profiles:user_id (
-          id,
-          full_name,
-          username,
-          avatar_url
-        )
-      `,
-      )
-      .in('game_id', gameIds)
+    const { data: allStarMarkets, error: allStarMarketError } = await supabase
+      .from('all_star_markets')
+      .select('id')
+      .eq('event_date', gameDate)
+      .eq('status', 'resolved')
 
-    if (picksError) {
-      console.error('Error fetching picks:', picksError)
+    if (allStarMarketError && allStarMarketError.code !== '42P01') {
+      console.error('Error fetching all-star markets for date:', allStarMarketError)
       return []
     }
+
+    const allStarMarketIds = allStarMarkets?.map(market => market.id) || []
+    if (gameIds.length === 0 && allStarMarketIds.length === 0) return []
+
+    let picks = []
+    if (gameIds.length > 0) {
+      const { data: gamePicks, error: picksError } = await supabase
+        .from('picks')
+        .select(
+          `
+          user_id,
+          confidence_score,
+          correct,
+          profiles:user_id (
+            id,
+            full_name,
+            username,
+            avatar_url
+          )
+        `,
+        )
+        .in('game_id', gameIds)
+
+      if (picksError) {
+        console.error('Error fetching picks:', picksError)
+        return []
+      }
+      picks = gamePicks || []
+    }
+
+    let allStarPicks = []
+    if (allStarMarketIds.length > 0) {
+      const { data: marketPicks, error: marketPicksError } = await supabase
+        .from('all_star_picks')
+        .select(
+          `
+          user_id,
+          confidence_score,
+          correct,
+          all_star_markets!inner (
+            multiplier
+          )
+        `,
+        )
+        .in('market_id', allStarMarketIds)
+        .not('correct', 'is', null)
+
+      if (marketPicksError) {
+        console.error('Error fetching all-star picks:', marketPicksError)
+        return []
+      }
+      allStarPicks = marketPicks || []
+    }
+
+    const allUserIds = Array.from(
+      new Set([...picks.map(pick => pick.user_id), ...allStarPicks.map(pick => pick.user_id)]),
+    )
+    const profileMap = await getProfileMap(allUserIds)
 
     // Aggregate user stats
     const userStats = {}
     if (picks) {
       picks.forEach(pick => {
-        const userId = pick.user_id
-        if (!userStats[userId]) {
-          userStats[userId] = {
-            user_id: userId,
-            user_full_name: pick.profiles?.full_name || 'Unknown',
-            username: pick.profiles?.username,
-            avatar_url: pick.profiles?.avatar_url,
-            total_picks: 0,
-            correct_picks: 0,
-            points: 0,
-          }
-        }
-
-        userStats[userId].total_picks++
+        ensureUserStats(userStats, pick, profileMap)
+        userStats[pick.user_id].total_picks++
         if (pick.correct) {
-          userStats[userId].correct_picks++
-          userStats[userId].points += pick.confidence_score || 1
+          userStats[pick.user_id].correct_picks++
+          userStats[pick.user_id].points += pick.confidence_score || 1
+        }
+      })
+    }
+
+    if (allStarPicks) {
+      allStarPicks.forEach(pick => {
+        ensureUserStats(userStats, pick, profileMap)
+        userStats[pick.user_id].total_picks++
+        if (pick.correct) {
+          userStats[pick.user_id].correct_picks++
+          userStats[pick.user_id].points +=
+            (pick.confidence_score || 1) * (pick.all_star_markets?.multiplier || 1)
         }
       })
     }

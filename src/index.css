@@ -73,10 +73,18 @@
   }
   .card-header {
     @apply border-b border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center justify-between;
-    background: linear-gradient(180deg, rgba(59,130,246,0.04), rgba(168,85,247,0.03));
+    background: linear-gradient(
+      180deg,
+      rgba(59, 130, 246, 0.04),
+      rgba(168, 85, 247, 0.03)
+    );
   }
   .dark .card-header {
-    background: linear-gradient(180deg, rgba(59,130,246,0.08), rgba(168,85,247,0.06));
+    background: linear-gradient(
+      180deg,
+      rgba(59, 130, 246, 0.08),
+      rgba(168, 85, 247, 0.06)
+    );
   }
   .card-body {
     @apply p-6;
@@ -171,16 +179,34 @@
     content: '';
     position: absolute;
     inset: 0;
-    background:
-      linear-gradient(135deg, rgba(16,185,129,0.05), rgba(217,70,239,0.05)),
-      repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 10px);
+    background: linear-gradient(
+        135deg,
+        rgba(16, 185, 129, 0.05),
+        rgba(217, 70, 239, 0.05)
+      ),
+      repeating-linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.03) 0,
+        rgba(255, 255, 255, 0.03) 2px,
+        transparent 2px,
+        transparent 10px
+      );
     pointer-events: none;
     mix-blend-mode: overlay;
   }
   .dark .cup-card::after {
-    background:
-      linear-gradient(135deg, rgba(16,185,129,0.07), rgba(217,70,239,0.07)),
-      repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0, rgba(255,255,255,0.02) 2px, transparent 2px, transparent 10px);
+    background: linear-gradient(
+        135deg,
+        rgba(16, 185, 129, 0.07),
+        rgba(217, 70, 239, 0.07)
+      ),
+      repeating-linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.02) 0,
+        rgba(255, 255, 255, 0.02) 2px,
+        transparent 2px,
+        transparent 10px
+      );
     mix-blend-mode: soft-light;
   }
 
@@ -191,39 +217,665 @@
   .cup-badge {
     @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest;
     color: #fff;
-    background: rgba(255,255,255,0.12);
-    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.2);
   }
 
   .cup-panel {
     @apply border-2;
     border-color: hsla(296, 74%, 45%, 0.22);
     box-shadow:
-      0 0 0 2px hsla(296,74%,45%,0.05) inset,
-      0 8px 20px -12px hsla(296,74%,45%,0.18);
+      0 0 0 2px hsla(296, 74%, 45%, 0.05) inset,
+      0 8px 20px -12px hsla(296, 74%, 45%, 0.18);
   }
   .dark .cup-panel {
-    border-color: hsla(296,74%,55%,0.10);
+    border-color: hsla(296, 74%, 55%, 0.1);
     box-shadow:
-      0 0 0 1px hsla(296,74%,55%,0.05) inset,
-      0 0 8px rgba(217,70,239,0.12);
+      0 0 0 1px hsla(296, 74%, 55%, 0.05) inset,
+      0 0 8px rgba(217, 70, 239, 0.12);
   }
 
   .cup-logo {
-    filter:
-      drop-shadow(0 4px 12px rgba(217,70,239,0.28))
-      drop-shadow(0 2px 4px rgba(16,185,129,0.2));
+    filter: drop-shadow(0 4px 12px rgba(217, 70, 239, 0.28))
+      drop-shadow(0 2px 4px rgba(16, 185, 129, 0.2));
   }
   .dark .cup-logo {
-    filter:
-      drop-shadow(0 4px 10px rgba(217,70,239,0.12))
-      drop-shadow(0 2px 3px rgba(16,185,129,0.10));
+    filter: drop-shadow(0 4px 10px rgba(217, 70, 239, 0.12))
+      drop-shadow(0 2px 3px rgba(16, 185, 129, 0.1));
   }
 
   .cup-side {
-    background: linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(217,70,239,0.12) 100%);
+    background: linear-gradient(
+      135deg,
+      rgba(16, 185, 129, 0.12) 0%,
+      rgba(217, 70, 239, 0.12) 100%
+    );
   }
   .dark .cup-side {
-    background: linear-gradient(135deg, rgba(16,185,129,0.10) 0%, rgba(217,70,239,0.10) 100%);
+    background: linear-gradient(
+      135deg,
+      rgba(16, 185, 129, 0.1) 0%,
+      rgba(217, 70, 239, 0.1) 100%
+    );
+  }
+
+  /* NBA All-Star 2026 styling - Premium Edition */
+  @keyframes allstar-header-glow {
+    0%,
+    100% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: rgba(226, 232, 240, 0.3);
+    border-radius: 3px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.3);
+    border-radius: 3px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.5);
+  }
+  .dark .scrollbar-thin::-webkit-scrollbar-track {
+    background: rgba(71, 85, 105, 0.2);
+  }
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(96, 165, 250, 0.3);
+  }
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(96, 165, 250, 0.5);
+  }
+
+  /* NBA All-Star 2026 styling - Redesigned Premium Edition */
+  .allstar-card-container {
+    @apply relative;
+  }
+
+  .allstar-card-main {
+    @apply relative rounded-2xl overflow-hidden;
+    background: radial-gradient(
+        circle at 0% 0%,
+        rgba(239, 68, 68, 0.06) 0%,
+        transparent 40%
+      ),
+      radial-gradient(
+        circle at 100% 100%,
+        rgba(29, 78, 216, 0.06) 0%,
+        transparent 40%
+      ),
+      linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.98) 0%,
+        rgba(249, 250, 251, 0.98) 100%
+      );
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.04),
+      0 12px 28px -6px rgba(0, 0, 0, 0.08),
+      0 0 0 1px rgba(226, 232, 240, 0.6);
+  }
+
+  .dark .allstar-card-main {
+    background: radial-gradient(
+        circle at 0% 0%,
+        rgba(239, 68, 68, 0.12) 0%,
+        transparent 40%
+      ),
+      radial-gradient(
+        circle at 100% 100%,
+        rgba(59, 130, 246, 0.12) 0%,
+        transparent 40%
+      ),
+      linear-gradient(
+        135deg,
+        rgba(15, 23, 42, 0.98) 0%,
+        rgba(30, 41, 59, 0.98) 100%
+      );
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.3),
+      0 12px 28px -6px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(71, 85, 105, 0.5);
+  }
+
+  .allstar-header-wrapper {
+    @apply relative overflow-hidden;
+  }
+
+  .allstar-header-accent {
+    @apply absolute inset-0 opacity-50;
+    background: linear-gradient(
+      135deg,
+      rgba(239, 68, 68, 0.08) 0%,
+      rgba(245, 158, 11, 0.12) 50%,
+      rgba(29, 78, 216, 0.08) 100%
+    );
+  }
+
+  .allstar-header-accent::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -50%;
+    right: -50%;
+    height: 4px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(239, 68, 68, 0.8) 20%,
+      rgba(245, 158, 11, 0.9) 50%,
+      rgba(29, 78, 216, 0.8) 80%,
+      transparent 100%
+    );
+  }
+
+  .dark .allstar-header-accent {
+    background: linear-gradient(
+      135deg,
+      rgba(239, 68, 68, 0.15) 0%,
+      rgba(245, 158, 11, 0.2) 50%,
+      rgba(59, 130, 246, 0.15) 100%
+    );
+  }
+
+  .allstar-header-content {
+    @apply relative px-6 py-5;
+  }
+
+  .allstar-title {
+    @apply text-xl md:text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100 leading-tight;
+  }
+
+  .allstar-subtitle {
+    @apply text-sm text-slate-600 dark:text-slate-400 mt-2 leading-relaxed;
+  }
+
+  .allstar-content-wrapper {
+    @apply flex flex-col lg:flex-row gap-6 p-6;
+  }
+
+  .allstar-options-section {
+    @apply flex-1 min-w-0;
+  }
+
+  .allstar-options-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 gap-3.5;
+  }
+
+  .allstar-options-grid-mvp {
+    @apply lg:grid-cols-3 max-h-[32rem] overflow-y-auto pr-2 scrollbar-thin;
+  }
+
+  /* Confidence Sidebar */
+  .allstar-confidence-sidebar {
+    @apply lg:w-80 shrink-0;
+  }
+
+  .allstar-confidence-inner {
+    @apply sticky top-6 rounded-xl p-5 space-y-4;
+    background: linear-gradient(
+        135deg,
+        rgba(239, 68, 68, 0.04) 0%,
+        rgba(245, 158, 11, 0.06) 50%,
+        rgba(29, 78, 216, 0.04) 100%
+      ),
+      rgba(255, 255, 255, 0.8);
+    border: 1.5px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.08);
+    backdrop-filter: blur(8px);
+  }
+
+  .dark .allstar-confidence-inner {
+    background: linear-gradient(
+        135deg,
+        rgba(239, 68, 68, 0.08) 0%,
+        rgba(245, 158, 11, 0.12) 50%,
+        rgba(59, 130, 246, 0.08) 100%
+      ),
+      rgba(30, 41, 59, 0.9);
+    border-color: rgba(71, 85, 105, 0.6);
+    box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.3);
+  }
+
+  .allstar-confidence-header {
+    @apply flex items-center gap-2 justify-center pb-4 border-b border-slate-200 dark:border-slate-700;
+    color: #f59e0b;
+  }
+
+  .allstar-confidence-selector {
+    @apply py-2;
+  }
+
+  .allstar-cancel-btn {
+    @apply w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-150;
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+
+  .allstar-cancel-btn:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.4);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+  }
+
+  .allstar-cancel-btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  .dark .allstar-cancel-btn {
+    background: rgba(239, 68, 68, 0.15);
+    color: #fca5a5;
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+
+  .dark .allstar-cancel-btn:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.5);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+  }
+
+  .allstar-your-pick-badge {
+    @apply flex items-center justify-center w-7 h-7 rounded-full shrink-0;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+  }
+
+  .dark .allstar-your-pick-badge {
+    background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+    box-shadow: 0 2px 6px rgba(96, 165, 250, 0.4);
+  }
+
+  /* Badges and Status */
+  .allstar-dot {
+    @apply inline-block w-2 h-2 rounded-full;
+    background: linear-gradient(135deg, #e11d48 0%, #f59e0b 50%, #1d4ed8 100%);
+    box-shadow:
+      0 0 0 2px rgba(255, 255, 255, 0.3),
+      0 0 0 4px rgba(29, 78, 216, 0.15),
+      0 0 12px rgba(239, 68, 68, 0.4);
+    animation: allstar-pulse 2.5s ease-in-out infinite;
+  }
+
+  @keyframes allstar-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+      box-shadow:
+        0 0 0 2px rgba(255, 255, 255, 0.3),
+        0 0 0 4px rgba(29, 78, 216, 0.15),
+        0 0 12px rgba(239, 68, 68, 0.4);
+    }
+    50% {
+      transform: scale(1.15);
+      opacity: 0.85;
+      box-shadow:
+        0 0 0 2px rgba(255, 255, 255, 0.5),
+        0 0 0 6px rgba(29, 78, 216, 0.25),
+        0 0 20px rgba(239, 68, 68, 0.6);
+    }
+  }
+
+  .allstar-multiplier {
+    @apply text-[10px] font-black uppercase tracking-[0.1em] px-3 py-1 rounded-md;
+    color: #78350f;
+    background: linear-gradient(135deg, #fef3c7 0%, #fcd34d 100%);
+    border: 1px solid rgba(217, 119, 6, 0.3);
+    box-shadow:
+      0 1px 3px rgba(180, 83, 9, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  }
+
+  .dark .allstar-multiplier {
+    color: #fef3c7;
+    background: linear-gradient(
+      135deg,
+      rgba(146, 64, 14, 0.9) 0%,
+      rgba(120, 53, 15, 0.95) 100%
+    );
+    border-color: rgba(251, 191, 36, 0.35);
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(251, 191, 36, 0.2);
+  }
+
+  .allstar-type {
+    @apply text-[10px] font-bold uppercase tracking-[0.1em] px-3 py-1 rounded-md;
+    color: #1e3a8a;
+    border: 1px solid rgba(37, 99, 235, 0.25);
+    background: linear-gradient(
+      135deg,
+      rgba(219, 234, 254, 0.9) 0%,
+      rgba(191, 219, 254, 0.7) 100%
+    );
+    box-shadow:
+      0 1px 3px rgba(37, 99, 235, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .dark .allstar-type {
+    color: #dbeafe;
+    border-color: rgba(96, 165, 250, 0.3);
+    background: linear-gradient(
+      135deg,
+      rgba(30, 58, 138, 0.6) 0%,
+      rgba(30, 64, 175, 0.5) 100%
+    );
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(96, 165, 250, 0.2);
+  }
+
+  .allstar-status {
+    @apply text-[10px] font-bold uppercase tracking-[0.1em] px-3 py-1.5 rounded-md;
+  }
+
+  .allstar-status-open {
+    color: #065f46;
+    background: linear-gradient(
+      135deg,
+      rgba(209, 250, 229, 0.9) 0%,
+      rgba(167, 243, 208, 0.7) 100%
+    );
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    box-shadow:
+      0 1px 3px rgba(16, 185, 129, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .allstar-status-locked {
+    color: #9a3412;
+    background: linear-gradient(
+      135deg,
+      rgba(254, 215, 170, 0.9) 0%,
+      rgba(253, 186, 116, 0.7) 100%
+    );
+    border: 1px solid rgba(249, 115, 22, 0.4);
+    box-shadow:
+      0 1px 3px rgba(249, 115, 22, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .allstar-status-resolved {
+    color: #1e3a8a;
+    background: linear-gradient(
+      135deg,
+      rgba(219, 234, 254, 0.9) 0%,
+      rgba(191, 219, 254, 0.7) 100%
+    );
+    border: 1px solid rgba(59, 130, 246, 0.4);
+    box-shadow:
+      0 1px 3px rgba(59, 130, 246, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .dark .allstar-status-open {
+    color: #6ee7b7;
+    background: linear-gradient(
+      135deg,
+      rgba(6, 78, 59, 0.8) 0%,
+      rgba(4, 120, 87, 0.6) 100%
+    );
+    border-color: rgba(52, 211, 153, 0.4);
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(52, 211, 153, 0.2);
+  }
+
+  .dark .allstar-status-locked {
+    color: #fdba74;
+    background: linear-gradient(
+      135deg,
+      rgba(154, 52, 18, 0.8) 0%,
+      rgba(124, 45, 18, 0.6) 100%
+    );
+    border-color: rgba(251, 146, 60, 0.4);
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(251, 146, 60, 0.2);
+  }
+
+  .dark .allstar-status-resolved {
+    color: #93c5fd;
+    background: linear-gradient(
+      135deg,
+      rgba(30, 58, 138, 0.8) 0%,
+      rgba(29, 78, 216, 0.6) 100%
+    );
+    border-color: rgba(96, 165, 250, 0.4);
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(96, 165, 250, 0.2);
+  }
+
+  .allstar-meta-row {
+    @apply flex flex-wrap items-center gap-2.5;
+  }
+
+  .allstar-meta-chip {
+    @apply text-[11px] font-semibold px-3 py-1.5 rounded-lg inline-flex items-center;
+    color: #475569;
+    background: rgba(248, 250, 252, 0.98);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  }
+
+  .dark .allstar-meta-chip {
+    color: #cbd5e1;
+    background: rgba(30, 41, 59, 0.9);
+    border-color: rgba(71, 85, 105, 0.4);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+
+  .allstar-search-wrap {
+    @apply w-full mb-4;
+  }
+
+  .allstar-search {
+    @apply w-full md:max-w-md;
+    border-color: rgba(226, 232, 240, 0.8);
+    background: rgba(255, 255, 255, 0.95);
+    transition: all 0.15s ease;
+    font-size: 0.875rem;
+  }
+
+  .allstar-search:hover {
+    border-color: rgba(59, 130, 246, 0.4);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+  }
+
+  .allstar-search:focus {
+    border-color: rgba(59, 130, 246, 0.6);
+    box-shadow:
+      0 0 0 3px rgba(59, 130, 246, 0.12),
+      0 2px 8px rgba(59, 130, 246, 0.15);
+  }
+
+  .dark .allstar-search {
+    border-color: rgba(71, 85, 105, 0.6);
+    background: rgba(30, 41, 59, 0.8);
+  }
+
+  .dark .allstar-search:hover {
+    border-color: rgba(96, 165, 250, 0.4);
+    box-shadow: 0 2px 8px rgba(96, 165, 250, 0.15);
+  }
+
+  .dark .allstar-search:focus {
+    border-color: rgba(96, 165, 250, 0.6);
+    box-shadow:
+      0 0 0 3px rgba(96, 165, 250, 0.15),
+      0 2px 8px rgba(96, 165, 250, 0.2);
+  }
+
+  /* Option Buttons */
+  .allstar-option {
+    @apply relative rounded-xl border px-4 py-3.5 text-left transition-all duration-150;
+    border-color: rgba(226, 232, 240, 0.8);
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.98) 0%,
+      rgba(249, 250, 251, 0.96) 100%
+    );
+    backdrop-filter: blur(2px);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+
+  .allstar-option-active {
+    @apply cursor-pointer;
+    box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.08);
+  }
+
+  .allstar-option-active:hover {
+    border-color: rgba(59, 130, 246, 0.4);
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 1) 0%,
+      rgba(248, 250, 252, 1) 100%
+    );
+    transform: translateY(-1px);
+    box-shadow:
+      0 4px 12px -3px rgba(59, 130, 246, 0.2),
+      0 2px 6px -2px rgba(0, 0, 0, 0.1);
+  }
+
+  .allstar-option-active:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px -2px rgba(59, 130, 246, 0.15);
+  }
+
+  .allstar-option-picked {
+    border-color: rgba(59, 130, 246, 0.6);
+    background: linear-gradient(
+      180deg,
+      rgba(239, 246, 255, 0.98) 0%,
+      rgba(219, 234, 254, 0.92) 100%
+    );
+    box-shadow:
+      0 0 0 1px rgba(59, 130, 246, 0.2),
+      0 2px 8px -2px rgba(59, 130, 246, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .allstar-option-correct {
+    border-color: rgba(16, 185, 129, 0.6);
+    background: linear-gradient(
+      180deg,
+      rgba(236, 253, 245, 0.98) 0%,
+      rgba(209, 250, 229, 0.92) 100%
+    );
+    box-shadow:
+      0 0 0 1px rgba(16, 185, 129, 0.2),
+      0 2px 8px -2px rgba(16, 185, 129, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .allstar-option-winner {
+    border-color: rgba(245, 158, 11, 0.6);
+    background: linear-gradient(
+      180deg,
+      rgba(255, 251, 235, 0.98) 0%,
+      rgba(254, 243, 199, 0.92) 100%
+    );
+    box-shadow:
+      0 0 0 1px rgba(245, 158, 11, 0.2),
+      0 2px 8px -2px rgba(245, 158, 11, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .allstar-option-wrong {
+    border-color: rgba(239, 68, 68, 0.5);
+    background: linear-gradient(
+      180deg,
+      rgba(254, 242, 242, 0.98) 0%,
+      rgba(254, 226, 226, 0.92) 100%
+    );
+    box-shadow:
+      0 0 0 1px rgba(239, 68, 68, 0.15),
+      0 2px 8px -2px rgba(239, 68, 68, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .dark .allstar-option {
+    border-color: rgba(71, 85, 105, 0.5);
+    background: linear-gradient(
+      180deg,
+      rgba(30, 41, 59, 0.9) 0%,
+      rgba(15, 23, 42, 0.95) 100%
+    );
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+
+  .dark .allstar-option-active:hover {
+    border-color: rgba(96, 165, 250, 0.5);
+    background: linear-gradient(
+      180deg,
+      rgba(51, 65, 85, 0.95) 0%,
+      rgba(30, 41, 59, 1) 100%
+    );
+    box-shadow:
+      0 4px 12px -3px rgba(96, 165, 250, 0.25),
+      0 2px 6px -2px rgba(0, 0, 0, 0.3);
+  }
+
+  .dark .allstar-option-picked {
+    border-color: rgba(96, 165, 250, 0.65);
+    background: linear-gradient(
+      180deg,
+      rgba(30, 58, 138, 0.7) 0%,
+      rgba(30, 64, 175, 0.6) 100%
+    );
+    box-shadow:
+      0 0 0 1px rgba(96, 165, 250, 0.3),
+      0 2px 8px -2px rgba(96, 165, 250, 0.3),
+      inset 0 1px 0 rgba(96, 165, 250, 0.2);
+  }
+
+  .dark .allstar-option-correct {
+    border-color: rgba(52, 211, 153, 0.65);
+    background: linear-gradient(
+      180deg,
+      rgba(6, 78, 59, 0.8) 0%,
+      rgba(4, 120, 87, 0.7) 100%
+    );
+    box-shadow:
+      0 0 0 1px rgba(52, 211, 153, 0.3),
+      0 2px 8px -2px rgba(52, 211, 153, 0.3),
+      inset 0 1px 0 rgba(52, 211, 153, 0.2);
+  }
+
+  .dark .allstar-option-winner {
+    border-color: rgba(251, 191, 36, 0.7);
+    background: linear-gradient(
+      180deg,
+      rgba(146, 64, 14, 0.85) 0%,
+      rgba(120, 53, 15, 0.75) 100%
+    );
+    box-shadow:
+      0 0 0 1px rgba(251, 191, 36, 0.3),
+      0 2px 8px -2px rgba(251, 191, 36, 0.3),
+      inset 0 1px 0 rgba(251, 191, 36, 0.2);
+  }
+
+  .dark .allstar-option-wrong {
+    border-color: rgba(248, 113, 113, 0.65);
+    background: linear-gradient(
+      180deg,
+      rgba(127, 29, 29, 0.85) 0%,
+      rgba(153, 27, 27, 0.7) 100%
+    );
+    box-shadow:
+      0 0 0 1px rgba(248, 113, 113, 0.25),
+      0 2px 8px -2px rgba(248, 113, 113, 0.25),
+      inset 0 1px 0 rgba(248, 113, 113, 0.15);
   }
 }
