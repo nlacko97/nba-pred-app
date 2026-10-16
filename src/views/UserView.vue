@@ -1,8 +1,16 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLeaderboardStatsStore } from '../stores/leaderboardStats'
+import { useGlobalStore } from '../stores/global'
+import { useScoutingStore } from '../stores/scouting'
 import { seasonLabel as formatSeason } from '../lib/season'
+import BadgeShelf from '../components/BadgeShelf.vue'
+import HitRateCard from '../components/HitRateCard.vue'
+import TeamLedger from '../components/TeamLedger.vue'
+import PickerCard from '../components/PickerCard.vue'
+import SeasonReceipt from '../components/SeasonReceipt.vue'
+import { useBadgesStore } from '../stores/badges'
 
 const props = defineProps({
   id: String,
@@ -10,6 +18,48 @@ const props = defineProps({
 
 const router = useRouter()
 const leaderboardStore = useLeaderboardStatsStore()
+const globalStore = useGlobalStore()
+const scoutingStore = useScoutingStore()
+const badgesStore = useBadgesStore()
+
+// Loaded by the badge shelf; the receipt reads streak and badge totals
+const badgeData = computed(
+  () =>
+    badgesStore.userBadges[`${props.id}-${leaderboardStore.selectedSeason}`],
+)
+const bestStreak = computed(
+  () => badgeData.value?.progress?.['hot-hand']?.best || 0,
+)
+const badgeCount = computed(() =>
+  Object.values(badgeData.value?.counts || {}).reduce((a, b) => a + b, 0),
+)
+
+// Every player's traits, so the trading card can compare with the league
+const league = ref([])
+watch(
+  () => [leaderboardStore.selectedSeason, leaderboardStore.isPostseason],
+  async ([season, postseason]) => {
+    league.value = await scoutingStore.fetchLeagueTraits(season, postseason)
+  },
+  { immediate: true },
+)
+
+const isMe = computed(() => globalStore.userId === props.id)
+
+// How this player picks, for the same season and phase as the stat line
+const report = ref(null)
+watch(
+  () => [
+    props.id,
+    leaderboardStore.selectedSeason,
+    leaderboardStore.isPostseason,
+  ],
+  async ([id, season, postseason]) => {
+    report.value = null
+    report.value = await scoutingStore.fetchReport(id, season, postseason)
+  },
+  { immediate: true },
+)
 
 const user = ref(null)
 const rank = ref(null)
@@ -52,41 +102,6 @@ const displayName = computed(
 const seasonLabel = computed(() =>
   formatSeason(leaderboardStore.selectedSeason),
 )
-
-const missed = computed(() =>
-  user.value ? user.value.total_picks - user.value.correct_picks : 0,
-)
-
-// 10×10 waffle: one square per percentage point of accuracy
-const waffleFilled = computed(() =>
-  user.value ? Math.round(user.value.accuracy) : 0,
-)
-
-const statBlocks = computed(() => {
-  if (!user.value) return []
-  return [
-    {
-      label: 'Total score',
-      value: user.value.total_score,
-    },
-    {
-      label: 'Correct',
-      value: user.value.correct_picks,
-      tone: 'text-win',
-    },
-    {
-      label: 'Missed',
-      value: missed.value,
-      tone: 'text-loss',
-    },
-    {
-      label: 'Avg per win',
-      value: (user.value.total_score / (user.value.correct_picks || 1)).toFixed(
-        1,
-      ),
-    },
-  ]
-})
 </script>
 
 <template>
@@ -163,62 +178,44 @@ const statBlocks = computed(() => {
         </div>
       </section>
 
-      <!-- Stat line -->
-      <dl class="grid grid-cols-2 border-b border-ink/15 md:grid-cols-4">
-        <div
-          v-for="(stat, i) in statBlocks"
-          :key="stat.label"
-          class="reveal border-ink/15 px-1 py-6 md:px-6 [&:not(:first-child)]:md:border-l"
-          :style="{ '--i': i + 2 }"
-        >
-          <dt class="label">{{ stat.label }}</dt>
-          <dd class="display num mt-2 text-6xl" :class="stat.tone">
-            {{ stat.value }}
-          </dd>
-        </div>
-      </dl>
-
-      <!-- Accuracy -->
-      <section
-        class="sheet reveal mt-10 grid gap-8 p-6 sm:p-8 md:grid-cols-[auto_minmax(0,1fr)] md:items-center"
-        style="--i: 6"
+      <!-- Three across: the trading card, hit rate, and the season receipt -->
+      <div
+        class="mt-12 grid items-start justify-items-center gap-10 md:grid-cols-2 xl:grid-cols-[20rem_minmax(0,1fr)_23rem] xl:gap-8"
       >
-        <div
-          class="waffle"
-          :aria-label="`${user.accuracy.toFixed(1)}% accuracy`"
-          role="img"
-        >
-          <span
-            v-for="n in 100"
-            :key="n"
-            class="waffle__cell"
-            :class="{ 'is-on': n <= waffleFilled }"
-            :style="{ '--d': `${n * 8}ms` }"
-          />
-        </div>
-        <div>
-          <p class="label">Hit rate</p>
-          <p class="display num mt-2 text-[clamp(4.5rem,12vw,8rem)]">
-            {{ user.accuracy.toFixed(1) }}<span class="text-muted">%</span>
-          </p>
+        <PickerCard
+          class="w-full max-w-[20rem]"
+          style="--i: 6"
+          :user="user"
+          :rank="rank"
+          :season="leaderboardStore.selectedSeason"
+          :league="league"
+        />
+        <HitRateCard
+          class="w-full self-stretch md:order-3 md:col-span-2 xl:order-none xl:col-span-1"
+          style="--i: 7"
+          :report="report"
+          :is-me="isMe"
+        />
+        <SeasonReceipt
+          style="--i: 8"
+          :user="user"
+          :rank="rank"
+          :season="leaderboardStore.selectedSeason"
+          :is-postseason="leaderboardStore.isPostseason"
+          :report="report"
+          :badge-count="badgeCount"
+          :best-streak="bestStreak"
+        />
+      </div>
 
-          <div class="mt-6">
-            <div class="mb-1.5 flex justify-between">
-              <span class="label">{{ user.correct_picks }} correct</span>
-              <span class="label">{{ user.total_picks }} total picks</span>
-            </div>
-            <div class="flex h-3 border-[1.5px] border-edge">
-              <span
-                class="bg-win transition-[width] duration-700"
-                :style="{
-                  width: `${(user.correct_picks / (user.total_picks || 1)) * 100}%`,
-                }"
-              />
-              <span class="flex-1 bg-loss/70" />
-            </div>
-          </div>
-        </div>
-      </section>
+      <BadgeShelf
+        class="mt-10"
+        style="--i: 8"
+        :user-id="id"
+        :season="leaderboardStore.selectedSeason"
+      />
+
+      <TeamLedger class="mt-10" style="--i: 9" :report="report" :is-me="isMe" />
     </div>
   </div>
 </template>
@@ -249,28 +246,5 @@ const statBlocks = computed(() => {
   font-size: 1.6rem;
   transform: rotate(6deg);
   box-shadow: 3px 3px 0 rgb(var(--c-shadow));
-}
-.waffle {
-  display: grid;
-  grid-template-columns: repeat(10, 1fr);
-  gap: 4px;
-  width: min(100%, 260px);
-}
-.waffle__cell {
-  aspect-ratio: 1;
-  background: rgb(var(--c-ink) / 0.1);
-}
-.waffle__cell.is-on {
-  background: rgb(var(--c-win));
-  animation: cell-in 0.4s ease both;
-  animation-delay: var(--d);
-}
-@keyframes cell-in {
-  from {
-    transform: scale(0);
-  }
-  to {
-    transform: scale(1);
-  }
 }
 </style>

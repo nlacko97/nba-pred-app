@@ -81,6 +81,29 @@ Deno.serve(async req => {
   }
   console.log(`updating ${picksToUpdate.length} picks`)
 
+  // Bonuses (upset) are recomputed from scratch, so rerunning is safe
+  const { data: bonusChanges, error: bonusError } = await supabase.rpc(
+    'apply_pick_bonuses',
+    { p_dates: dates },
+  )
+  if (bonusError) {
+    console.error(bonusError)
+  }
+  console.log(`bonuses changed on ${bonusChanges ?? 0} picks`)
+
+  // Badges for each scored day, oldest first; awards are idempotent
+  for (const date of [...dates].sort()) {
+    const { data: awarded, error: badgeError } = await supabase.rpc(
+      'award_badges',
+      { p_date: date },
+    )
+    if (badgeError) {
+      console.error(badgeError)
+      continue
+    }
+    console.log(`badges for ${date}: ${JSON.stringify(awarded)}`)
+  }
+
   return new Response(JSON.stringify('success\n'), {
     headers: { 'Content-Type': 'application/json' },
   })

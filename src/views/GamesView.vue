@@ -12,6 +12,8 @@ import GameSpotlight from '../components/GameSpotlight.vue'
 import InjuryWire from '../components/InjuryWire.vue'
 import StandingsSnapshot from '../components/StandingsSnapshot.vue'
 import LeagueLeaders from '../components/LeagueLeaders.vue'
+import PeriodChampions from '../components/PeriodChampions.vue'
+import NewBadgePanel from '../components/NewBadgePanel.vue'
 import { gameDayIso } from '../lib/season'
 
 const gamesStore = useGamesStore()
@@ -159,6 +161,8 @@ function createAssetUrl(assetPath) {
             +1 All-Star bonus
           </p>
         </section>
+        <NewBadgePanel v-if="session" />
+        <PeriodChampions />
       </aside>
 
       <!-- Feed -->
@@ -237,6 +241,10 @@ function createAssetUrl(assetPath) {
             <li class="flex gap-3">
               <span class="display text-xl text-muted">03</span> Correct picks
               score their confidence in points.
+            </li>
+            <li class="flex gap-3">
+              <span class="display text-xl text-muted">04</span> Call an upset:
+              a correct pick on a team given under 30% to win scores +1.
             </li>
           </ol>
           <p class="label mt-5">Sign in with Google to start picking</p>

@@ -1,20 +1,28 @@
 <script setup>
-import { onMounted, watch, computed } from 'vue'
+import { onMounted, watch, computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useLeaderboardStatsStore } from '../stores/leaderboardStats'
 import { useGlobalStore } from '../stores/global'
+import { useBadgesStore } from '../stores/badges'
 import FilterControls from '../components/FilterControls.vue'
 import LeaderboardCard from '../components/LeaderboardCard.vue'
+import BadgeIcon from '../components/BadgeIcon.vue'
+import StreakFlame from '../components/StreakFlame.vue'
 import { seasonLabel as formatSeason } from '../lib/season'
 
 const router = useRouter()
 const leaderboardStore = useLeaderboardStatsStore()
 const globalStore = useGlobalStore()
+const badgesStore = useBadgesStore()
 
 const session = computed(() => globalStore.session)
 const userId = computed(() => globalStore.userId)
 
-const sortedStats = computed(() => leaderboardStore.sortedStats)
+const sortedStats = computed(() => leaderboardStore.displayedStats)
+const mode = computed(() => leaderboardStore.mode)
+const periodStart = computed(() => leaderboardStore.periodStart)
+const isPeriod = computed(() => mode.value !== 'season')
+const bounds = ref(null)
 const loading = computed(() => leaderboardStore.loading)
 const selectedSeason = computed({
   get: () => leaderboardStore.selectedSeason,
@@ -41,9 +49,42 @@ const navigateToUser = userId => {
   router.push({ name: 'user', params: { id: userId } })
 }
 
-const handleFilterChange = async (season, postseason) => {
-  await leaderboardStore.setSeason(season, postseason)
+const handleSeasonChange = async season => {
+  if (isPeriod.value) {
+    await leaderboardStore.setPeriodSeason(season)
+    return
+  }
+  await leaderboardStore.setSeason(season, isPostseason.value)
 }
+
+const periodNav = computed(() => leaderboardStore.periodNav)
+
+// Opening night numbers the weeks; the last game day ends navigation.
+// Badges and streaks follow the selected season.
+watch(
+  selectedSeason,
+  async season => {
+    bounds.value = await leaderboardStore.fetchSeasonBounds(season)
+    if (session.value) {
+      await Promise.all([
+        badgesStore.fetchStreaks(season),
+        badgesStore.fetchRecent(season),
+      ])
+    }
+  },
+  { immediate: true },
+)
+
+const recentBadges = computed(
+  () => badgesStore.recent[selectedSeason.value] || {},
+)
+const streaks = computed(() => badgesStore.streaks[selectedSeason.value] || {})
+
+const emptyLabel = computed(() =>
+  isPeriod.value
+    ? `No graded picks this ${mode.value} yet.`
+    : 'No results for this season yet.',
+)
 
 onMounted(async () => {
   if (session.value) {
@@ -53,34 +94,39 @@ onMounted(async () => {
 
 watch(session, async newSession => {
   if (newSession) {
-    await leaderboardStore.fetchStats()
+    await Promise.all([
+      leaderboardStore.fetchStats(),
+      badgesStore.fetchStreaks(selectedSeason.value),
+      badgesStore.fetchRecent(selectedSeason.value),
+    ])
   }
 })
 </script>
 
 <template>
   <div>
-    <!-- Headline -->
-    <section
-      class="flex flex-col gap-6 border-b-[1.5px] border-edge pb-6 lg:flex-row lg:items-end lg:justify-between"
-    >
-      <div class="reveal">
-        <p class="kicker text-xl sm:text-2xl">
-          {{ seasonLabel }} ·
-          {{ isPostseason ? 'Postseason' : 'Regular season' }}
-        </p>
-        <h1 class="display text-[clamp(4rem,13vw,9.5rem)]">
-          Stand<span class="outline-text">ings</span>
-        </h1>
-      </div>
+    <!-- Headline; the scope is filled in on the sheet below it -->
+    <section class="border-b-[1.5px] border-edge pb-7">
+      <h1 class="display reveal text-[clamp(4rem,13vw,9.5rem)]">
+        Stand<span class="outline-text">ings</span>
+      </h1>
       <FilterControls
         v-if="session"
-        class="reveal"
+        class="reveal mt-5"
         style="--i: 2"
+        :mode="mode"
         :selected-season="selectedSeason"
         :is-postseason="isPostseason"
-        @update-filters="handleFilterChange"
+        :period-start="periodStart"
+        :opening-night="bounds?.openingNight"
+        :period-nav="periodNav"
+        @select-scope="leaderboardStore.setScope"
+        @select-season="handleSeasonChange"
+        @step="leaderboardStore.stepPeriod"
       />
+      <p v-else class="kicker reveal mt-4 text-xl sm:text-2xl">
+        {{ seasonLabel }} · Regular season
+      </p>
     </section>
 
     <template v-if="session">
@@ -134,7 +180,9 @@ watch(session, async newSession => {
               ]"
               @click="navigateToUser(user.user_id)"
             >
-              <span class="podium-card__rank">{{ index + 1 }}</span>
+              <span class="podium-card__rank">{{
+                user.rank ?? index + 1
+              }}</span>
               <span class="relative flex items-center gap-3">
                 <span
                   class="avatar h-14 w-14 border-[1.5px] border-current text-2xl"
@@ -157,6 +205,25 @@ watch(session, async newSession => {
                   <span class="display block truncate text-2xl">{{
                     displayName(user)
                   }}</span>
+                  <span
+                    v-if="
+                      recentBadges[user.user_id]?.length ||
+                      streaks[user.user_id]?.correct_streak > 1
+                    "
+                    class="mt-1.5 flex items-center gap-1.5"
+                  >
+                    <BadgeIcon
+                      v-for="slug in recentBadges[user.user_id] || []"
+                      :key="slug"
+                      :slug="slug"
+                      :size="26"
+                    />
+                    <StreakFlame
+                      v-if="streaks[user.user_id]?.correct_streak > 1"
+                      :count="streaks[user.user_id].correct_streak"
+                      label="correct in a row"
+                    />
+                  </span>
                 </span>
               </span>
               <span class="relative mt-8 flex items-end justify-between">
@@ -196,9 +263,11 @@ watch(session, async newSession => {
             v-for="(user, index) in field"
             :key="user.user_id"
             :user="user"
-            :rank="index + 4"
+            :rank="user.rank ?? index + 4"
             :leader-score="leaderScore"
             :is-current-user="user.user_id === userId"
+            :badges="recentBadges[user.user_id] || []"
+            :streak="streaks[user.user_id]"
             @click="navigateToUser(user.user_id)"
           />
         </section>
@@ -208,7 +277,7 @@ watch(session, async newSession => {
         <p class="display text-[clamp(3rem,10vw,6rem)] text-ink/15">
           No results
         </p>
-        <p class="kicker mt-3 text-lg">No results for this season yet.</p>
+        <p class="kicker mt-3 text-lg">{{ emptyLabel }}</p>
       </div>
     </template>
 

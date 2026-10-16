@@ -15,7 +15,8 @@ Deno.serve(async req => {
 
   // ?full=1 loads the whole season, e.g. right before opening night;
   // otherwise only the next 30 days are refreshed.
-  // ?stages=1&days=60 skips balldontlie and only tags NBA Cup games.
+  // ?stages=1&days=60 skips balldontlie and only syncs ESPN data
+  // (NBA Cup stages and event ids).
   const params = new URL(req.url).searchParams
   const full = params.get('full') === '1'
   const stagesOnly = params.get('stages') === '1'
@@ -36,10 +37,10 @@ Deno.serve(async req => {
     }
   }
 
-  const cup = await tagCupGames(supabase, dates)
-  console.log(`NBA Cup: ${JSON.stringify(cup)}`)
+  const espn = await syncEspnMeta(supabase, dates)
+  console.log(`ESPN: ${JSON.stringify(espn)}`)
 
-  return new Response(JSON.stringify({ success: true, cup }), {
+  return new Response(JSON.stringify({ success: true, espn }), {
     headers: { 'Content-Type': 'application/json' },
   })
 })
@@ -73,9 +74,10 @@ async function refreshGames(supabase, dates) {
   return null
 }
 
-// balldontlie has no NBA Cup flag, so read ESPN's game notes
-// ("NBA Cup - Group Play", "NBA Cup - East Quarterfinal", …) into
-// games.stage, which the app uses for Cup styling
+// balldontlie has no NBA Cup flag or ESPN ids, so read them from ESPN's
+// scoreboard: the game notes ("NBA Cup - Group Play", "NBA Cup - East
+// Quarterfinal", …) go to games.stage, which the app uses for Cup styling,
+// and the event id to games.espn_event_id, which snapshot-win-probs uses
 const ESPN_SCOREBOARD =
   'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard'
 const ESPN_TO_APP = {
@@ -87,7 +89,7 @@ const ESPN_TO_APP = {
   WSH: 'WAS',
 }
 
-async function fetchCupStages(date) {
+async function fetchEspnEvents(date) {
   // ESPN refuses requests without a browser-like User-Agent
   const response = await fetch(
     `${ESPN_SCOREBOARD}?dates=${date.replaceAll('-', '')}`,
@@ -106,35 +108,45 @@ async function fetchCupStages(date) {
       team => team.homeAway === 'home',
     )
     const abbr = home?.team?.abbreviation
-    if (!note || !abbr) return []
-    return [{ date, homeAbbr: ESPN_TO_APP[abbr] || abbr, stage: note }]
+    if (!abbr) return []
+    return [
+      {
+        date,
+        homeAbbr: ESPN_TO_APP[abbr] || abbr,
+        stage: note || null,
+        eventId: event.id ? String(event.id) : null,
+      },
+    ]
   })
 }
 
-async function tagCupGames(supabase, dates) {
-  const stages = []
+async function syncEspnMeta(supabase, dates) {
+  const events = []
   const errors = []
   // A handful of dates at a time keeps ESPN happy and the run short
   for (let i = 0; i < dates.length; i += 8) {
     const batch = await Promise.allSettled(
-      dates.slice(i, i + 8).map(fetchCupStages),
+      dates.slice(i, i + 8).map(fetchEspnEvents),
     )
     for (const result of batch) {
-      if (result.status === 'fulfilled') stages.push(...result.value)
+      if (result.status === 'fulfilled') events.push(...result.value)
       else errors.push(String(result.reason))
     }
   }
   const summary = {
-    found: stages.length,
-    tagged: 0,
+    found: events.length,
+    cupTagged: 0,
+    eventIds: 0,
     errors: errors.slice(0, 3),
   }
-  if (!stages.length) return summary
+  if (!events.length) return summary
 
   const { data: games, error } = await supabase
     .from('games')
-    .select('id, date, stage, home_team:home_team_id(abbreviation)')
-    .in('date', [...new Set(stages.map(s => s.date))])
+    .select(
+      'id, date, stage, espn_event_id, home_team:home_team_id(abbreviation)',
+    )
+    .in('date', [...new Set(events.map(e => e.date))])
   if (error) {
     console.error(error)
     return { ...summary, errors: [error.message] }
@@ -142,12 +154,18 @@ async function tagCupGames(supabase, dates) {
 
   // Only ever set a stage: a missing note never clears an existing one
   const idsByStage = {}
-  for (const { date, homeAbbr, stage } of stages) {
+  const eventIds = []
+  for (const { date, homeAbbr, stage, eventId } of events) {
     const game = games.find(
       g => g.date === date && g.home_team?.abbreviation === homeAbbr,
     )
-    if (!game || game.stage === stage) continue
-    ;(idsByStage[stage] ||= []).push(game.id)
+    if (!game) continue
+    if (stage && game.stage !== stage) {
+      ;(idsByStage[stage] ||= []).push(game.id)
+    }
+    if (eventId && game.espn_event_id !== eventId) {
+      eventIds.push({ id: game.id, espn_event_id: eventId })
+    }
   }
 
   for (const [stage, ids] of Object.entries(idsByStage)) {
@@ -159,7 +177,13 @@ async function tagCupGames(supabase, dates) {
       console.error(updateError)
       continue
     }
-    summary.tagged += ids.length
+    summary.cupTagged += ids.length
+  }
+
+  if (eventIds.length) {
+    const { error: idError } = await supabase.from('games').upsert(eventIds)
+    if (idError) console.error(idError)
+    else summary.eventIds = eventIds.length
   }
   return summary
 }

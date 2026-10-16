@@ -1,5 +1,7 @@
 <script setup>
 import { computed } from 'vue'
+import BadgeIcon from './BadgeIcon.vue'
+import StreakFlame from './StreakFlame.vue'
 
 const props = defineProps({
   user: {
@@ -18,7 +20,25 @@ const props = defineProps({
     type: Number,
     default: 0,
   },
+  // Up to three most recent badge slugs
+  badges: {
+    type: Array,
+    default: () => [],
+  },
+  // { correct_streak, day_streak } from get_streaks
+  streak: {
+    type: Object,
+    default: null,
+  },
 })
+
+// Streaks start to mean something at 2
+const correctStreak = computed(() => props.streak?.correct_streak || 0)
+const dayStreak = computed(() => props.streak?.day_streak || 0)
+const hasExtras = computed(
+  () =>
+    props.badges.length > 0 || correctStreak.value > 1 || dayStreak.value > 1,
+)
 
 const emit = defineEmits(['click'])
 
@@ -57,13 +77,35 @@ const displayName = computed(
           >You</span
         >
       </span>
-      <span class="mt-1.5 flex items-center gap-2 md:hidden">
-        <span class="bar w-20"
+      <span
+        class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1"
+        :class="{ 'md:hidden': !hasExtras }"
+      >
+        <span class="bar w-20 md:hidden"
           ><span :style="{ width: `${user.accuracy}%` }"
         /></span>
-        <span class="num text-[0.6875rem] text-muted"
+        <span class="num text-[0.6875rem] text-muted md:hidden"
           >{{ user.accuracy.toFixed(1) }}%</span
         >
+        <span v-if="badges.length" class="flex items-center gap-0.5">
+          <BadgeIcon
+            v-for="slug in badges"
+            :key="slug"
+            :slug="slug"
+            :size="24"
+          />
+        </span>
+        <StreakFlame
+          v-if="correctStreak > 1"
+          :count="correctStreak"
+          label="correct in a row"
+        />
+        <StreakFlame
+          v-if="dayStreak > 1"
+          :count="dayStreak"
+          label="game days in a row"
+          kind="days"
+        />
       </span>
     </span>
 

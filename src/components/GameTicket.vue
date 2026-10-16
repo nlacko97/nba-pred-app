@@ -190,9 +190,43 @@ const lines = computed(() => {
   )
 })
 
+// The stored snapshot is what the upset bonus is scored on, so prefer it
+// over the live ESPN number
+const homeWinPct = computed(() => {
+  if (props.game.home_win_prob != null) return Number(props.game.home_win_prob)
+  return lines.value?.homeWinPct ?? null
+})
+
+const UPSET_LINE = 30
+
+function sideWinPct(side) {
+  if (props.game.home_win_prob == null) return null
+  const home = Number(props.game.home_win_prob)
+  return side.key === 'home' ? home : 100 - home
+}
+
+// Before tip: flag the side that would earn the upset bonus
+function isUpsetSide(side) {
+  if (!props.game.upset_bonus || isLocked.value) return false
+  const pct = sideWinPct(side)
+  return pct !== null && pct < UPSET_LINE
+}
+
+function earnedUpset(side) {
+  return (
+    pick.value?.picked_team === side.id &&
+    pick.value.correct === true &&
+    (pick.value.bonus_reasons || []).includes('upset')
+  )
+}
+
+const showLines = computed(
+  () => isScheduled.value && (!!lines.value || homeWinPct.value != null),
+)
+
 const hasFooter = computed(
   () =>
-    lines.value ||
+    showLines.value ||
     showUndo.value ||
     (session.value && pick.value) ||
     showBallotToggle.value ||
@@ -240,7 +274,11 @@ const hasFooter = computed(
         ]"
         :role="canPick ? 'button' : undefined"
         :tabindex="canPick ? 0 : undefined"
-        :aria-label="canPick ? `Pick ${side.name}` : undefined"
+        :aria-label="
+          canPick
+            ? `Pick ${side.name}${isUpsetSide(side) ? ', upset worth +1' : ''}`
+            : undefined
+        "
         @click="submitPick(side)"
         @keydown.enter.prevent="submitPick(side)"
         @keydown.space.prevent="submitPick(side)"
@@ -257,7 +295,18 @@ const hasFooter = computed(
           </span>
 
           <div class="min-w-0">
-            <p class="side__label">{{ side.label }}</p>
+            <p class="side__label">
+              {{ side.label }}
+              <span
+                v-if="isUpsetSide(side)"
+                class="upset-tag"
+                :title="`${Math.round(sideWinPct(side))}% to win: a correct pick scores +1`"
+                >Upset +1</span
+              >
+              <span v-else-if="earnedUpset(side)" class="upset-tag is-earned"
+                >+1 upset</span
+              >
+            </p>
             <p class="side__name">{{ side.name }}</p>
             <div class="side__record">
               <span class="num"
@@ -311,32 +360,27 @@ const hasFooter = computed(
     <!-- Footer -->
     <div v-if="hasFooter" class="ticket__foot">
       <!-- Pre-game lines -->
-      <div v-if="lines" class="lines">
-        <div v-if="lines.homeWinPct != null" class="lines__prob">
+      <div v-if="showLines" class="lines">
+        <div v-if="homeWinPct != null" class="lines__prob">
           <div class="mb-1.5 flex justify-between">
             <span class="label">
               {{ game.away_team_abbreviation }}
               <span class="num text-ink"
-                >{{ Math.round(100 - lines.homeWinPct) }}%</span
+                >{{ Math.round(100 - homeWinPct) }}%</span
               >
             </span>
             <span class="label">Win probability</span>
             <span class="label">
-              <span class="num text-ink"
-                >{{ Math.round(lines.homeWinPct) }}%</span
-              >
+              <span class="num text-ink">{{ Math.round(homeWinPct) }}%</span>
               {{ game.home_team_abbreviation }}
             </span>
           </div>
           <div class="flex h-1.5">
-            <span
-              class="bg-ink"
-              :style="{ width: `${100 - lines.homeWinPct}%` }"
-            />
+            <span class="bg-ink" :style="{ width: `${100 - homeWinPct}%` }" />
             <span class="flex-1 bg-ink/20" />
           </div>
         </div>
-        <dl class="lines__facts">
+        <dl v-if="lines" class="lines__facts">
           <div v-if="lines.spread">
             <dt class="label">Spread</dt>
             <dd class="num">{{ lines.spread }}</dd>
@@ -813,6 +857,27 @@ const hasFooter = computed(
   .side--home .stamp {
     left: 1rem;
   }
+}
+
+/* Upset bonus tag: accent ink on the open ticket, white on a filled side */
+.upset-tag {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0 0.3rem;
+  border: 1.5px solid currentColor;
+  color: rgb(var(--c-accent));
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+.side.is-picked .upset-tag,
+.side.is-won .upset-tag,
+.side.is-lost .upset-tag {
+  color: #fff;
+}
+.upset-tag.is-earned {
+  background: #fff;
+  color: rgb(var(--c-win-fill)) !important;
+  border-color: #fff;
 }
 
 /* ─── Stub ─── */

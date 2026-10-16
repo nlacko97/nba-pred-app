@@ -1,7 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabaseClient'
-import { CURRENT_SEASON } from '../lib/season'
+import {
+  CURRENT_SEASON,
+  FIRST_SEASON,
+  addDays,
+  gameDayIso,
+  periodRange,
+  seasonForDate,
+} from '../lib/season'
 
 export const useLeaderboardStatsStore = defineStore('leaderboardStats', () => {
   const stats = ref([])
@@ -10,104 +17,15 @@ export const useLeaderboardStatsStore = defineStore('leaderboardStats', () => {
   const loading = ref(false)
   const cache = ref({})
 
+  // 'season' shows the season table; 'week' and 'month' show one period
+  // (Monday–Sunday or calendar month, regular season and postseason alike)
+  const mode = ref('season')
+  const periodStart = ref(null)
+  const periodStats = ref([])
+  const periodCache = ref({})
+  const seasonBounds = ref({})
+
   const getCacheKey = (season, postseason) => `${season}-${postseason}`
-
-  const fetchAllStarPointSummary = async (season, postseason) => {
-    const { data, error } = await supabase
-      .from('all_star_picks')
-      .select(
-        `
-        user_id,
-        confidence_score,
-        correct,
-        all_star_markets!inner (
-          season,
-          postseason,
-          multiplier
-        )
-      `,
-      )
-      .eq('all_star_markets.season', Number(season))
-      .eq('all_star_markets.postseason', postseason)
-      .not('correct', 'is', null)
-
-    if (error) {
-      // Missing table should not break leaderboard rendering
-      if (error.code !== '42P01') {
-        console.error('Error fetching all-star picks summary:', error)
-      }
-      return {}
-    }
-
-    return (data || []).reduce((acc, pick) => {
-      if (!acc[pick.user_id]) {
-        acc[pick.user_id] = {
-          total_picks: 0,
-          correct_picks: 0,
-          total_score: 0,
-        }
-      }
-      acc[pick.user_id].total_picks += 1
-      if (pick.correct) {
-        acc[pick.user_id].correct_picks += 1
-        acc[pick.user_id].total_score +=
-          (pick.confidence_score || 1) *
-          (pick.all_star_markets?.multiplier || 1)
-      }
-      return acc
-    }, {})
-  }
-
-  const mergeAllStarStats = async (baseStats, season, postseason) => {
-    const allStarSummary = await fetchAllStarPointSummary(season, postseason)
-    const mergedStats = [...(baseStats || [])]
-    const existingUsers = new Set(mergedStats.map(user => user.user_id))
-
-    mergedStats.forEach(user => {
-      const summary = allStarSummary[user.user_id]
-      if (!summary) return
-      user.total_picks = (user.total_picks || 0) + summary.total_picks
-      user.correct_picks = (user.correct_picks || 0) + summary.correct_picks
-      user.total_score = (user.total_score || 0) + summary.total_score
-      user.accuracy =
-        user.total_picks > 0 ? (user.correct_picks / user.total_picks) * 100 : 0
-    })
-
-    const missingUserIds = Object.keys(allStarSummary).filter(
-      userId => !existingUsers.has(userId),
-    )
-
-    if (missingUserIds.length) {
-      const { data: profileRows, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, full_name, username, avatar_url')
-        .in('id', missingUserIds)
-
-      if (profileError) {
-        console.error('Error fetching all-star profile rows:', profileError)
-      } else {
-        profileRows.forEach(profile => {
-          const summary = allStarSummary[profile.id]
-          if (!summary) return
-          mergedStats.push({
-            user_id: profile.id,
-            full_name: profile.full_name || profile.username || 'Unknown',
-            username: profile.username || profile.full_name || 'Unknown',
-            avatar_url: profile.avatar_url || null,
-            total_picks: summary.total_picks,
-            correct_picks: summary.correct_picks,
-            total_score: summary.total_score,
-            accuracy:
-              summary.total_picks > 0
-                ? (summary.correct_picks / summary.total_picks) * 100
-                : 0,
-          })
-        })
-      }
-    }
-
-    return mergedStats
-  }
 
   const fetchStats = async (
     season = selectedSeason.value,
@@ -135,13 +53,9 @@ export const useLeaderboardStatsStore = defineStore('leaderboardStats', () => {
         return
       }
 
-      const mergedStats = await mergeAllStarStats(
-        data || [],
-        season,
-        postseason,
-      )
-      stats.value = mergedStats
-      cache.value[cacheKey] = mergedStats
+      // Totals include All-Star market points (see the pick_points view)
+      stats.value = data || []
+      cache.value[cacheKey] = stats.value
     } catch (error) {
       console.error('Error fetching leaderboard stats:', error)
       stats.value = []
@@ -156,8 +70,180 @@ export const useLeaderboardStatsStore = defineStore('leaderboardStats', () => {
     isPostseason.value = postseason
   }
 
+  // First and last game day of a season: week 1 is the week of opening night,
+  // and period navigation stops at the season's last game
+  const fetchSeasonBounds = async season => {
+    if (seasonBounds.value[season]) return seasonBounds.value[season]
+    const firstGame = supabase
+      .from('games')
+      .select('date')
+      .eq('season', Number(season))
+      .eq('postseason', false)
+      .order('date', { ascending: true })
+      .limit(1)
+    const lastGame = supabase
+      .from('games')
+      .select('date')
+      .eq('season', Number(season))
+      .order('date', { ascending: false })
+      .limit(1)
+    const [first, last] = await Promise.all([firstGame, lastGame])
+    if (first.error || last.error) {
+      console.error('Error fetching season dates:', first.error || last.error)
+      return null
+    }
+    if (!first.data.length) return null
+    const bounds = {
+      openingNight: first.data[0].date,
+      lastGameDay: last.data[0].date,
+    }
+    seasonBounds.value[season] = bounds
+    return bounds
+  }
+
+  const fetchPeriod = async (type = mode.value, start = periodStart.value) => {
+    const { end } = periodRange(type, start)
+    const cacheKey = `${type}-${start}`
+    // The current period is still being played, so never serve it stale
+    const isLive = end >= gameDayIso()
+    if (periodCache.value[cacheKey] && !isLive) {
+      periodStats.value = periodCache.value[cacheKey]
+      return
+    }
+
+    loading.value = true
+    try {
+      const { data, error } = await supabase.rpc('get_period_leaderboard', {
+        p_start: start,
+        p_end: end,
+      })
+      if (error) {
+        console.error('Error fetching period leaderboard:', error)
+        periodStats.value = []
+        return
+      }
+      periodStats.value = data || []
+      periodCache.value[cacheKey] = periodStats.value
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // A season's periods run from the one with opening night to the one being
+  // played now (or the last one, once the season is over). Before opening
+  // night that is week 1, still to come.
+  const firstPeriodStart = (type, bounds) =>
+    periodRange(type, bounds.openingNight).start
+
+  const lastPeriodStart = (type, bounds) => {
+    const today = gameDayIso()
+    let day = bounds.lastGameDay < today ? bounds.lastGameDay : today
+    if (day < bounds.openingNight) day = bounds.openingNight
+    return periodRange(type, day).start
+  }
+
+  const latestPeriodStart = async (type, season) => {
+    const bounds = await fetchSeasonBounds(season)
+    return bounds
+      ? lastPeriodStart(type, bounds)
+      : periodRange(type, gameDayIso()).start
+  }
+
+  // The neighbouring periods; the arrows skip the offseason into the
+  // previous or next season
+  const periodNav = ref({ previous: null, next: null })
+
+  const updatePeriodNav = async () => {
+    const type = mode.value
+    const start = periodStart.value
+    const season = Number(selectedSeason.value)
+    const bounds = await fetchSeasonBounds(season)
+    const nav = { previous: null, next: null }
+    if (bounds) {
+      if (start > firstPeriodStart(type, bounds)) {
+        nav.previous = {
+          start: periodRange(type, addDays(start, -1)).start,
+          season,
+        }
+      } else if (season > FIRST_SEASON) {
+        const before = await fetchSeasonBounds(season - 1)
+        if (before) {
+          nav.previous = {
+            start: lastPeriodStart(type, before),
+            season: season - 1,
+          }
+        }
+      }
+      if (start < lastPeriodStart(type, bounds)) {
+        nav.next = {
+          start: addDays(periodRange(type, start).end, 1),
+          season,
+        }
+      } else if (season < CURRENT_SEASON) {
+        const after = await fetchSeasonBounds(season + 1)
+        if (after) {
+          nav.next = {
+            start: firstPeriodStart(type, after),
+            season: season + 1,
+          }
+        }
+      }
+    }
+    periodNav.value = nav
+  }
+
+  const showPeriod = async (start, season = selectedSeason.value) => {
+    selectedSeason.value = String(season)
+    periodStart.value = start
+    await Promise.all([fetchPeriod(), updatePeriodNav()])
+  }
+
+  const setMode = async newMode => {
+    mode.value = newMode
+    if (newMode === 'season') {
+      await fetchStats()
+      return
+    }
+    const season = selectedSeason.value
+    const current = periodStart.value
+    // Keep the period when switching week ⇄ month inside the same season
+    const anchor =
+      current && seasonForDate(current) === Number(season)
+        ? periodRange(newMode, current).start
+        : await latestPeriodStart(newMode, season)
+    await showPeriod(anchor)
+  }
+
+  // One choice for the scope: the regular season, the postseason, or the
+  // latest week or month
+  const setScope = async scope => {
+    if (scope === 'week' || scope === 'month') {
+      await setMode(scope)
+      return
+    }
+    isPostseason.value = scope === 'post'
+    mode.value = 'season'
+    await fetchStats()
+  }
+
+  // Another season while on weeks or months: its latest period
+  const setPeriodSeason = async season => {
+    await showPeriod(await latestPeriodStart(mode.value, season), season)
+  }
+
+  const stepPeriod = async direction => {
+    const target = periodNav.value[direction]
+    if (!target) return
+    await showPeriod(target.start, target.season)
+  }
+
+  const displayedStats = computed(() =>
+    mode.value === 'season' ? sortedStats.value : periodStats.value,
+  )
+
   const aggregatedStats = computed(() => {
-    if (stats.value.length === 0) {
+    const rows = displayedStats.value
+    if (rows.length === 0) {
       return {
         totalPlayers: 0,
         totalPicks: 0,
@@ -167,25 +253,15 @@ export const useLeaderboardStatsStore = defineStore('leaderboardStats', () => {
       }
     }
 
-    const totalPicks = stats.value.reduce(
-      (sum, user) => sum + user.total_picks,
-      0,
-    )
-    const totalCorrect = stats.value.reduce(
-      (sum, user) => sum + user.correct_picks,
-      0,
-    )
-    const totalScore = stats.value.reduce(
-      (sum, user) => sum + user.total_score,
-      0,
-    )
+    const totalPicks = rows.reduce((sum, user) => sum + user.total_picks, 0)
+    const totalCorrect = rows.reduce((sum, user) => sum + user.correct_picks, 0)
+    const totalScore = rows.reduce((sum, user) => sum + user.total_score, 0)
     const avgAccuracy = Math.round(
-      stats.value.reduce((sum, user) => sum + user.accuracy, 0) /
-        stats.value.length,
+      rows.reduce((sum, user) => sum + user.accuracy, 0) / rows.length,
     )
 
     return {
-      totalPlayers: stats.value.length,
+      totalPlayers: rows.length,
       totalPicks,
       totalCorrect,
       avgAccuracy,
@@ -211,5 +287,16 @@ export const useLeaderboardStatsStore = defineStore('leaderboardStats', () => {
     setSeason,
     aggregatedStats,
     sortedStats,
+    mode,
+    periodStart,
+    periodStats,
+    displayedStats,
+    fetchSeasonBounds,
+    fetchPeriod,
+    setMode,
+    periodNav,
+    stepPeriod,
+    setScope,
+    setPeriodSeason,
   }
 })

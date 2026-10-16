@@ -269,12 +269,17 @@ export const useGamesStore = defineStore('games', () => {
 
   const getInjuryReport = async () => {
     const injuriesApiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-injuries`
-    const injuriesResponse = await fetch(injuriesApiUrl, {
-      headers: {
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-      },
-    })
-    injuries.value = await injuriesResponse.json()
+    // The injury feed is optional: without it the slate must still load
+    try {
+      const injuriesResponse = await fetch(injuriesApiUrl, {
+        headers: {
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+      })
+      injuries.value = await injuriesResponse.json()
+    } catch (error) {
+      console.error('Error fetching injury report:', error)
+    }
   }
 
   const initializeGames = async () => {

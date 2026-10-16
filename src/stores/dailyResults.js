@@ -12,40 +12,6 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
   const cache = ref({}) // Cache results by game date
   const lastFetchDate = ref(null) // Track when data was last fetched
 
-  const ensureUserStats = (userStats, pick, profileMap = {}) => {
-    const userId = pick.user_id
-    const profile = profileMap[userId] || pick.profiles
-    if (!userStats[userId]) {
-      userStats[userId] = {
-        user_id: userId,
-        user_full_name: profile?.full_name || 'Unknown',
-        username: profile?.username || 'Unknown',
-        avatar_url: profile?.avatar_url,
-        total_picks: 0,
-        correct_picks: 0,
-        points: 0,
-      }
-    }
-  }
-
-  const getProfileMap = async userIds => {
-    if (!userIds.length) return {}
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, full_name, username, avatar_url')
-      .in('id', userIds)
-
-    if (error) {
-      console.error('Error fetching profiles for daily results:', error)
-      return {}
-    }
-
-    return (data || []).reduce((acc, profile) => {
-      acc[profile.id] = profile
-      return acc
-    }, {})
-  }
-
   // Find the most recent date with completed games
   const findLastGameDate = async () => {
     const today = gameDayIso()
@@ -83,7 +49,8 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
     return null
   }
 
-  // Get all players' results for the last game day
+  // Get all players' results for the last game day (game and market points,
+  // ranked like the period leaderboards)
   const getAllPlayersDailyResults = async gameDate => {
     if (!gameDate) return []
 
@@ -92,139 +59,26 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
       return cache.value[gameDate]
     }
 
-    // Get games for this date to fetch picks
-    const { data: games, error: gamesError } = await supabase
-      .from('games')
-      .select('id')
-      .eq('date', gameDate)
+    const { data, error } = await supabase.rpc('get_period_leaderboard', {
+      p_start: gameDate,
+      p_end: gameDate,
+    })
 
-    if (gamesError) {
-      console.error('Error fetching games for date:', gamesError)
+    if (error) {
+      console.error('Error fetching daily results:', error)
       return []
     }
 
-    const gameIds = games?.map(g => g.id) || []
-
-    const { data: allStarMarkets, error: allStarMarketError } = await supabase
-      .from('all_star_markets')
-      .select('id')
-      .eq('event_date', gameDate)
-      .eq('status', 'resolved')
-
-    if (allStarMarketError && allStarMarketError.code !== '42P01') {
-      console.error(
-        'Error fetching all-star markets for date:',
-        allStarMarketError,
-      )
-      return []
-    }
-
-    const allStarMarketIds = allStarMarkets?.map(market => market.id) || []
-    if (gameIds.length === 0 && allStarMarketIds.length === 0) return []
-
-    let picks = []
-    if (gameIds.length > 0) {
-      const { data: gamePicks, error: picksError } = await supabase
-        .from('picks')
-        .select(
-          `
-          user_id,
-          confidence_score,
-          correct,
-          profiles:user_id (
-            id,
-            full_name,
-            username,
-            avatar_url
-          )
-        `,
-        )
-        .in('game_id', gameIds)
-
-      if (picksError) {
-        console.error('Error fetching picks:', picksError)
-        return []
-      }
-      picks = gamePicks || []
-    }
-
-    let allStarPicks = []
-    if (allStarMarketIds.length > 0) {
-      const { data: marketPicks, error: marketPicksError } = await supabase
-        .from('all_star_picks')
-        .select(
-          `
-          user_id,
-          confidence_score,
-          correct,
-          all_star_markets!inner (
-            multiplier
-          )
-        `,
-        )
-        .in('market_id', allStarMarketIds)
-        .not('correct', 'is', null)
-
-      if (marketPicksError) {
-        console.error('Error fetching all-star picks:', marketPicksError)
-        return []
-      }
-      allStarPicks = marketPicks || []
-    }
-
-    const allUserIds = Array.from(
-      new Set([
-        ...picks.map(pick => pick.user_id),
-        ...allStarPicks.map(pick => pick.user_id),
-      ]),
-    )
-    const profileMap = await getProfileMap(allUserIds)
-
-    // Aggregate user stats
-    const userStats = {}
-    if (picks) {
-      picks.forEach(pick => {
-        ensureUserStats(userStats, pick, profileMap)
-        userStats[pick.user_id].total_picks++
-        if (pick.correct) {
-          userStats[pick.user_id].correct_picks++
-          userStats[pick.user_id].points += pick.confidence_score || 1
-        }
-      })
-    }
-
-    if (allStarPicks) {
-      allStarPicks.forEach(pick => {
-        ensureUserStats(userStats, pick, profileMap)
-        userStats[pick.user_id].total_picks++
-        if (pick.correct) {
-          userStats[pick.user_id].correct_picks++
-          userStats[pick.user_id].points +=
-            (pick.confidence_score || 1) *
-            (pick.all_star_markets?.multiplier || 1)
-        }
-      })
-    }
-
-    // Convert to array and calculate accuracy
-    const dayResults = Object.values(userStats)
-      .map(stats => ({
-        ...stats,
-        accuracy:
-          stats.total_picks > 0
-            ? (stats.correct_picks / stats.total_picks) * 100
-            : 0,
-      }))
-      .sort((a, b) => {
-        // Sort by points (desc), then by correct picks (desc), then accuracy
-        if (b.points !== a.points) {
-          return b.points - a.points
-        }
-        if (b.correct_picks !== a.correct_picks) {
-          return b.correct_picks - a.correct_picks
-        }
-        return b.accuracy - a.accuracy
-      })
+    const dayResults = (data || []).map(row => ({
+      user_id: row.user_id,
+      user_full_name: row.full_name || 'Unknown',
+      username: row.username || 'Unknown',
+      avatar_url: row.avatar_url,
+      total_picks: row.total_picks,
+      correct_picks: row.correct_picks,
+      points: Number(row.total_score),
+      accuracy: Number(row.accuracy) || 0,
+    }))
 
     // Cache the results
     cache.value[gameDate] = dayResults
