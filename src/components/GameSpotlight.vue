@@ -47,7 +47,6 @@ const tipTime = computed(() => {
     v-if="spotlight"
     title="Closest matchup"
     :meta="[tipTime, spotlight.lines.broadcast].filter(Boolean).join(' · ')"
-    :sample="insightsStore.isSample"
   >
     <div class="flex items-center justify-between gap-2">
       <div

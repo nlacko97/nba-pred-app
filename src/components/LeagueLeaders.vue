@@ -5,15 +5,14 @@ import { getTeamImageUrl } from '../lib/teamLogo'
 import RailPanel from './RailPanel.vue'
 
 const insightsStore = useInsightsStore()
-const { leaders } = storeToRefs(insightsStore)
+const { leaders, leadersLabel } = storeToRefs(insightsStore)
 </script>
 
 <template>
   <RailPanel
     v-if="leaders.length"
     title="League leaders"
-    meta="Per game"
-    :sample="insightsStore.isSample"
+    :meta="leadersLabel ? `${leadersLabel} · Per game` : 'Per game'"
   >
     <ul class="grid grid-cols-2 gap-px bg-ink/15">
       <li v-for="leader in leaders" :key="leader.abbr" class="bg-card p-3">

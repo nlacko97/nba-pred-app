@@ -1,12 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { insightsProvider } from '../lib/insights'
+import { CURRENT_SEASON } from '../lib/season'
 
 export const useInsightsStore = defineStore('insights', () => {
   const linesByDate = ref({})
   const standings = ref(null)
+  const standingsLabel = ref(null)
   const leaders = ref([])
-  const isSample = insightsProvider.isMock
+  const leadersLabel = ref(null)
 
   const fetchLines = async (date, games) => {
     if (!games.length || linesByDate.value[date]) return
@@ -21,11 +23,13 @@ export const useInsightsStore = defineStore('insights', () => {
     if (standings.value) return
     try {
       const [standingsData, leadersData] = await Promise.all([
-        insightsProvider.getStandings(),
-        insightsProvider.getLeaders(),
+        insightsProvider.getStandings(CURRENT_SEASON),
+        insightsProvider.getLeaders(CURRENT_SEASON),
       ])
       standings.value = standingsData
-      leaders.value = leadersData
+      standingsLabel.value = standingsData.label
+      leaders.value = leadersData.leaders
+      leadersLabel.value = leadersData.label
     } catch (error) {
       console.error('Error fetching league context:', error)
     }
@@ -36,8 +40,9 @@ export const useInsightsStore = defineStore('insights', () => {
   return {
     linesByDate,
     standings,
+    standingsLabel,
     leaders,
-    isSample,
+    leadersLabel,
     fetchLines,
     fetchLeagueContext,
     linesFor,

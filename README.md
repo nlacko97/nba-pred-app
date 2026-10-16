@@ -1,5 +1,5 @@
 # nba-pred-app
-Vote on NBA games from the 2024 season. Vue SPA + Supabase backend
+Pick NBA games every night with confidence points. Vue SPA + Supabase backend
 
 # nba-pred-app
 
@@ -37,22 +37,16 @@ npm run build
 npm run lint
 ```
 
-## Game insights & demo data
+## Game insights
 
 The Games page rail (closest matchup, league standings, league leaders) and the
-per-game lines strip (spread, total, win probability, TV) read from a pluggable
-provider in `src/lib/insights/`:
-
-| `VITE_INSIGHTS_SOURCE` | Source |
-| --- | --- |
-| `mock` (default) | Deterministic sample data, labelled "Sample" in the UI |
-| `espn` | ESPN public site API (no key, CORS-enabled, unofficial) |
-
-A provider exports `getGameLines(date, games)`, `getStandings()` and
-`getLeaders()`; add another file with the same shape to use a different source
-(e.g. balldontlie GOAT tier via a Supabase edge function).
+per-game lines strip (spread, total, win probability, TV) read from ESPN's
+public site API (no key, CORS-enabled, unofficial) in
+`src/lib/insights/espnProvider.js`. Before a season's first game, standings and
+leaders fall back to the previous season's final numbers, labelled as such.
 
 The injury report module uses the existing RotoWire feed (`get-injuries`).
 
-Set `VITE_DEMO_GAMES=true` to add a local-only preview slate to today's date
-(one live game, three upcoming). Picks on demo games never reach Supabase.
+The schedule comes from balldontlie via the `refresh-schedule` edge function.
+It loads the next 30 days by default; call it with `?full=1` to load the
+whole season.

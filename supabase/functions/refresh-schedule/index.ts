@@ -13,9 +13,14 @@ Deno.serve(async req => {
       '',
   )
 
+  // ?full=1 loads the whole season, e.g. right before opening night;
+  // otherwise only the next 30 days are refreshed
+  const full = new URL(req.url).searchParams.get('full') === '1'
   const dates = []
-  for (let i = 0; i <= 30; i++) {
-    dates.push(formatDateToString(i))
+  if (!full) {
+    for (let i = 0; i <= 30; i++) {
+      dates.push(formatDateToString(i))
+    }
   }
 
   const season = currentSeason()
@@ -72,15 +77,25 @@ function currentSeason() {
 async function fetchGamesFromDates(season, dates) {
   let cursor = undefined
   const games = []
-  const datesParam = dates.map(d => `dates[]=${d}`).join('&')
-  do {
-    let url = `https://api.balldontlie.io/v1/games?seasons[]=${season}&${datesParam}&per_page=100`
+  const params = [
+    `seasons[]=${season}`,
+    ...dates.map(d => `dates[]=${d}`),
+    'per_page=100',
+  ].join('&')
+  while (true) {
+    let url = `https://api.balldontlie.io/v1/games?${params}`
     if (cursor) {
       url = url.concat(`&cursor=${cursor}`)
     }
     const response = await fetch(url, {
       headers: { Authorization: Deno.env.get('BALLDONTLIE_API_KEY') ?? '' },
     })
+    // The free tier allows 5 requests a minute; wait and retry the page
+    if (response.status === 429) {
+      console.log('rate limited, retrying in 15s')
+      await new Promise(resolve => setTimeout(resolve, 15000))
+      continue
+    }
     if (!response.ok) {
       throw new Error(
         `balldontlie ${response.status}: ${await response.text()}`,
@@ -88,9 +103,10 @@ async function fetchGamesFromDates(season, dates) {
     }
     const { data, meta } = await response.json()
 
-    cursor = meta.next_cursor
     games.push(...data)
-  } while (cursor !== undefined)
+    cursor = meta.next_cursor
+    if (cursor === undefined || cursor === null) break
+  }
 
   return games
 }

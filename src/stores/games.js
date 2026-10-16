@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import { ref, watch, computed } from 'vue'
 import { supabase } from '../lib/supabaseClient'
 import { useGlobalStore } from './global'
-import { withDemoGames } from '../lib/demoGames'
 import { addDays, gameDayIso, seasonForDate } from '../lib/season'
 
 export const useGamesStore = defineStore('games', () => {
@@ -191,7 +190,7 @@ export const useGamesStore = defineStore('games', () => {
           console.error('Error fetching games:', error)
           games.value = []
         } else {
-          data = withDemoGames(data, selectedDate.value).map(g => {
+          data = data.map(g => {
             g.home_team = {}
             g.away_team = {}
             g.home_team.picks = g.picks.filter(pick => {
@@ -340,12 +339,10 @@ export const useGamesStore = defineStore('games', () => {
     if (game.picks[userId]) {
       toUpsert.id = game.picks[userId].id || game.picks[userId].pick_id
     }
-    const { data, error } = game.is_demo
-      ? { data: [{ ...toUpsert, id: `demo-${game.game_id}` }], error: null }
-      : await supabase.from('picks').upsert([toUpsert]).select(
-          '*,user:user_id(full_name),\
-        picked_team_name:picked_team(name)',
-        )
+    const { data, error } = await supabase
+      .from('picks')
+      .upsert([toUpsert])
+      .select('*,user:user_id(full_name),picked_team_name:picked_team(name)')
 
     if (error) {
       alert(error.message)
@@ -525,14 +522,12 @@ export const useGamesStore = defineStore('games', () => {
     const pick = game.picks[userId]
     if (!pick) return
     const pickId = pick.id || pick.pick_id
-    const { data: deletedRows, error } = game.is_demo
-      ? { data: [{ id: pickId }], error: null }
-      : await supabase
-          .from('picks')
-          .delete()
-          .eq('id', pickId)
-          .eq('user_id', userId)
-          .select('id')
+    const { data: deletedRows, error } = await supabase
+      .from('picks')
+      .delete()
+      .eq('id', pickId)
+      .eq('user_id', userId)
+      .select('id')
     if (error) {
       alert(error.message)
       return

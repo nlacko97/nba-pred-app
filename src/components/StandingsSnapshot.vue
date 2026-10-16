@@ -7,7 +7,7 @@ import { getTeamImageUrl } from '../lib/teamLogo'
 import RailPanel from './RailPanel.vue'
 
 const insightsStore = useInsightsStore()
-const { standings } = storeToRefs(insightsStore)
+const { standings, standingsLabel } = storeToRefs(insightsStore)
 const { games } = storeToRefs(useGamesStore())
 
 const conference = ref('east')
@@ -29,8 +29,11 @@ const rows = computed(() => standings.value?.[conference.value] || [])
   <RailPanel
     v-if="standings"
     title="League standings"
-    meta="Top 8 · ● plays on this date"
-    :sample="insightsStore.isSample"
+    :meta="
+      standingsLabel
+        ? `${standingsLabel} · Top 8 · ● plays on this date`
+        : 'Top 8 · ● plays on this date'
+    "
   >
     <div class="seg mb-3 w-full [&>button]:flex-1">
       <button

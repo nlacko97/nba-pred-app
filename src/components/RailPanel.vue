@@ -8,10 +8,6 @@ defineProps({
     type: String,
     default: '',
   },
-  sample: {
-    type: Boolean,
-    default: false,
-  },
 })
 </script>
 
@@ -24,12 +20,6 @@ defineProps({
       </div>
       <div class="flex shrink-0 items-center gap-2">
         <slot name="actions" />
-        <span
-          v-if="sample"
-          class="border border-dashed border-ink/40 px-1.5 py-0.5 text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-muted"
-          title="Placeholder data until a live source is configured"
-          >Sample</span
-        >
       </div>
     </header>
     <slot />
