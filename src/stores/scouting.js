@@ -6,13 +6,16 @@ import { supabase } from '../lib/supabaseClient'
 export const useScoutingStore = defineStore('scouting', () => {
   const reports = ref({})
 
-  const fetchReport = async (userId, season, postseason) => {
-    const key = `${userId}-${season}-${postseason}`
+  // A range ({ start, end }) narrows either to a week or month, both phases
+  const fetchReport = async (userId, season, postseason, range = null) => {
+    const key = `${userId}-${season}-${postseason}-${range?.start}-${range?.end}`
     if (reports.value[key]) return reports.value[key]
     const { data, error } = await supabase.rpc('get_user_scouting', {
       p_user_id: userId,
       p_season: Number(season),
       p_postseason: postseason,
+      p_start: range?.start ?? null,
+      p_end: range?.end ?? null,
     })
     if (error) {
       console.error('Error fetching scouting report:', error)
@@ -25,12 +28,14 @@ export const useScoutingStore = defineStore('scouting', () => {
   // Every player's traits for a season, to compare a player with the league
   const leagues = ref({})
 
-  const fetchLeagueTraits = async (season, postseason) => {
-    const key = `${season}-${postseason}`
+  const fetchLeagueTraits = async (season, postseason, range = null) => {
+    const key = `${season}-${postseason}-${range?.start}-${range?.end}`
     if (leagues.value[key]) return leagues.value[key]
     const { data, error } = await supabase.rpc('get_league_traits', {
       p_season: Number(season),
       p_postseason: postseason,
+      p_start: range?.start ?? null,
+      p_end: range?.end ?? null,
     })
     if (error) {
       console.error('Error fetching league traits:', error)

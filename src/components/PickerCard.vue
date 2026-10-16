@@ -17,7 +17,17 @@ const props = defineProps({
     type: [String, Number],
     required: true,
   },
-  // get_league_traits rows: every player's traits this season
+  // The week or month shown instead of the season, if any
+  period: {
+    type: String,
+    default: null,
+  },
+  // Players with this many graded picks set the league norm
+  minPicks: {
+    type: Number,
+    default: 50,
+  },
+  // get_league_traits rows: every player's traits for the same scope
   league: {
     type: Array,
     default: () => [],
@@ -27,9 +37,6 @@ const props = defineProps({
 const name = computed(
   () => props.user.full_name || props.user.username || 'Unknown',
 )
-
-// Players with this many graded picks set the league norm
-const MIN_PICKS = 50
 
 // Each trait, what a high and a low reading make you, and how to show it
 const TRAITS = [
@@ -101,7 +108,7 @@ const me = computed(() =>
 const readings = computed(() => {
   if (!me.value) return []
   const field = props.league.filter(
-    row => row.picks >= MIN_PICKS || row.user_id === me.value.user_id,
+    row => row.picks >= props.minPicks || row.user_id === me.value.user_id,
   )
   return TRAITS.map(trait => {
     const values = field
@@ -205,7 +212,7 @@ const stats = computed(() => [
           {{ rarity === 'legendary' ? '★' : rarity === 'rare' ? '✦' : '●' }}
           {{ rarity }}
         </span>
-        <span class="num">{{ seasonLabel(season) }}</span>
+        <span class="num">{{ period || seasonLabel(season) }}</span>
         <span v-if="rank" class="card__rank num">#{{ rank }}</span>
       </header>
 

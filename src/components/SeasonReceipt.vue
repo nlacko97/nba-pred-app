@@ -16,17 +16,19 @@ const props = defineProps({
     type: [String, Number],
     required: true,
   },
-  isPostseason: {
-    type: Boolean,
-    default: false,
+  // 'Regular season', 'Postseason', 'Week 3 · Oct 20–26' or 'October 2026'
+  scope: {
+    type: String,
+    default: 'Regular season',
   },
   report: {
     type: Object,
     default: null,
   },
+  // Left off for a week or month; badges are season-long
   badgeCount: {
     type: Number,
-    default: 0,
+    default: null,
   },
   bestStreak: {
     type: Number,
@@ -90,7 +92,7 @@ const items = computed(() => {
       label: 'Nights going all in',
       value: nights.value.with_max,
     },
-    { label: 'Badges', value: props.badgeCount },
+    props.badgeCount !== null && { label: 'Badges', value: props.badgeCount },
   ].filter(Boolean)
 })
 
@@ -128,7 +130,7 @@ const hitRate = computed(() =>
         <p>NBA PREDICTOR · EST. 2024</p>
         <p>
           {{ seasonLabel(season) }}
-          {{ isPostseason ? 'POSTSEASON' : 'REGULAR SEASON' }}
+          {{ scope.toUpperCase() }}
         </p>
       </header>
 

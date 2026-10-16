@@ -4,7 +4,11 @@ import { useRouter } from 'vue-router'
 import { useLeaderboardStatsStore } from '../stores/leaderboardStats'
 import { useGlobalStore } from '../stores/global'
 import { useScoutingStore } from '../stores/scouting'
-import { seasonLabel as formatSeason } from '../lib/season'
+import {
+  periodLabel,
+  periodRange,
+  seasonLabel as formatSeason,
+} from '../lib/season'
 import BadgeShelf from '../components/BadgeShelf.vue'
 import HitRateCard from '../components/HitRateCard.vue'
 import TeamLedger from '../components/TeamLedger.vue'
@@ -22,48 +26,126 @@ const globalStore = useGlobalStore()
 const scoutingStore = useScoutingStore()
 const badgesStore = useBadgesStore()
 
-// Loaded by the badge shelf; the receipt reads streak and badge totals
-const badgeData = computed(
-  () =>
-    badgesStore.userBadges[`${props.id}-${leaderboardStore.selectedSeason}`],
+// The standings scope: the regular season, the postseason, or one week or
+// month (both phases). The card, receipt and ledgers all follow it.
+const isPeriod = computed(() => leaderboardStore.mode !== 'season')
+const range = computed(() =>
+  isPeriod.value && leaderboardStore.periodStart
+    ? periodRange(leaderboardStore.mode, leaderboardStore.periodStart)
+    : null,
 )
-const bestStreak = computed(
-  () => badgeData.value?.progress?.['hot-hand']?.best || 0,
+const postseason = computed(() =>
+  isPeriod.value ? null : leaderboardStore.isPostseason,
 )
-const badgeCount = computed(() =>
-  Object.values(badgeData.value?.counts || {}).reduce((a, b) => a + b, 0),
+
+// Opening night numbers the weeks
+const openingNight = ref(null)
+watch(
+  () => leaderboardStore.selectedSeason,
+  async season => {
+    const bounds = await leaderboardStore.fetchSeasonBounds(season)
+    openingNight.value = bounds?.openingNight || null
+  },
+  { immediate: true },
 )
+
+// 'Regular season', 'Week 3 · Oct 20–26' or 'October 2026'
+const scopeLabel = computed(() => {
+  if (!range.value) {
+    return leaderboardStore.isPostseason ? 'Postseason' : 'Regular season'
+  }
+  return periodLabel(
+    leaderboardStore.mode,
+    range.value.start,
+    openingNight.value,
+  )
+})
+// Short enough for the trading card's header
+const cardLabel = computed(() => {
+  if (!range.value) return null
+  return scopeLabel.value.split(' · ')[0]
+})
+// A week or month has far fewer picks to set the league norm with
+const minPicks = computed(
+  () => ({ week: 4, month: 15 })[leaderboardStore.mode] ?? 50,
+)
+
+const scopeKey = computed(() => [
+  leaderboardStore.selectedSeason,
+  postseason.value,
+  range.value,
+])
 
 // Every player's traits, so the trading card can compare with the league
 const league = ref([])
 watch(
-  () => [leaderboardStore.selectedSeason, leaderboardStore.isPostseason],
-  async ([season, postseason]) => {
-    league.value = await scoutingStore.fetchLeagueTraits(season, postseason)
+  scopeKey,
+  async ([season, phase, dates]) => {
+    league.value = await scoutingStore.fetchLeagueTraits(season, phase, dates)
   },
   { immediate: true },
+)
+
+// Loaded by the badge shelf; the receipt reads streak and badge totals.
+// Badges are season-long, so a week or month leaves them off and takes the
+// streak from that period's picks.
+const badgeData = computed(
+  () =>
+    badgesStore.userBadges[`${props.id}-${leaderboardStore.selectedSeason}`],
+)
+const bestStreak = computed(() =>
+  isPeriod.value
+    ? league.value.find(row => row.user_id === props.id)?.heat || 0
+    : badgeData.value?.progress?.['hot-hand']?.best || 0,
+)
+const badgeCount = computed(() =>
+  isPeriod.value
+    ? null
+    : Object.values(badgeData.value?.counts || {}).reduce((a, b) => a + b, 0),
 )
 
 const isMe = computed(() => globalStore.userId === props.id)
 
-// How this player picks, for the same season and phase as the stat line
+// How this player picks, for the same scope as the stat line
 const report = ref(null)
 watch(
-  () => [
-    props.id,
-    leaderboardStore.selectedSeason,
-    leaderboardStore.isPostseason,
-  ],
-  async ([id, season, postseason]) => {
+  () => [props.id, ...scopeKey.value],
+  async ([id, season, phase, dates]) => {
     report.value = null
-    report.value = await scoutingStore.fetchReport(id, season, postseason)
+    report.value = await scoutingStore.fetchReport(id, season, phase, dates)
   },
   { immediate: true },
 )
 
-const user = ref(null)
-const rank = ref(null)
 const loading = ref(true)
+
+const seasonIndex = computed(() =>
+  leaderboardStore.sortedStats.findIndex(u => u.user_id === props.id),
+)
+const periodRow = computed(() =>
+  leaderboardStore.periodStats.find(u => u.user_id === props.id),
+)
+
+// In a week or month the stat line is that period's; a player with no graded
+// picks in it keeps their name and photo with an empty line
+const user = computed(() => {
+  if (isPeriod.value && periodRow.value) return periodRow.value
+  const row = leaderboardStore.sortedStats[seasonIndex.value]
+  if (!row) return null
+  if (!isPeriod.value) return row
+  return {
+    ...row,
+    total_picks: 0,
+    correct_picks: 0,
+    total_score: 0,
+    accuracy: 0,
+  }
+})
+const rank = computed(() => {
+  if (isPeriod.value) return periodRow.value?.rank ?? null
+  if (seasonIndex.value === -1) return null
+  return user.value?.rank ?? seasonIndex.value + 1
+})
 
 const navigateBack = () => {
   router.push({ name: 'leaderboard' })
@@ -72,22 +154,7 @@ const navigateBack = () => {
 onMounted(async () => {
   loading.value = true
   try {
-    const stats = leaderboardStore.sortedStats
-    const userIndex = stats.findIndex(u => u.user_id === props.id)
-
-    if (userIndex !== -1) {
-      user.value = stats[userIndex]
-      rank.value = userIndex + 1
-    } else {
-      await leaderboardStore.fetchStats()
-      const updatedStats = leaderboardStore.sortedStats
-      const updatedIndex = updatedStats.findIndex(u => u.user_id === props.id)
-
-      if (updatedIndex !== -1) {
-        user.value = updatedStats[updatedIndex]
-        rank.value = updatedIndex + 1
-      }
-    }
+    if (!user.value) await leaderboardStore.fetchStats()
   } catch (error) {
     console.error('Error loading user details:', error)
   } finally {
@@ -146,7 +213,7 @@ const seasonLabel = computed(() =>
       <section
         class="relative overflow-hidden border-b-[1.5px] border-edge pb-8"
       >
-        <span class="rank-ghost" aria-hidden="true">{{
+        <span v-if="rank" class="rank-ghost" aria-hidden="true">{{
           String(rank).padStart(2, '0')
         }}</span>
         <div class="relative flex flex-col gap-6 sm:flex-row sm:items-end">
@@ -162,15 +229,10 @@ const seasonLabel = computed(() =>
               />
               <template v-else>{{ displayName.charAt(0) }}</template>
             </span>
-            <span class="rank-badge">#{{ rank }}</span>
+            <span v-if="rank" class="rank-badge">#{{ rank }}</span>
           </div>
           <div class="reveal min-w-0" style="--i: 1">
-            <p class="kicker text-xl">
-              {{ seasonLabel }} ·
-              {{
-                leaderboardStore.isPostseason ? 'Postseason' : 'Regular season'
-              }}
-            </p>
+            <p class="kicker text-xl">{{ seasonLabel }} · {{ scopeLabel }}</p>
             <h1 class="display break-words text-[clamp(3rem,9vw,7rem)]">
               {{ displayName }}
             </h1>
@@ -188,6 +250,8 @@ const seasonLabel = computed(() =>
           :user="user"
           :rank="rank"
           :season="leaderboardStore.selectedSeason"
+          :period="cardLabel"
+          :min-picks="minPicks"
           :league="league"
         />
         <HitRateCard
@@ -201,7 +265,7 @@ const seasonLabel = computed(() =>
           :user="user"
           :rank="rank"
           :season="leaderboardStore.selectedSeason"
-          :is-postseason="leaderboardStore.isPostseason"
+          :scope="scopeLabel"
           :report="report"
           :badge-count="badgeCount"
           :best-streak="bestStreak"
