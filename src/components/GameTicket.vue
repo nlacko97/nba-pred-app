@@ -345,10 +345,6 @@ const hasFooter = computed(
             <dt class="label">Total</dt>
             <dd class="num">{{ lines.total }}</dd>
           </div>
-          <div v-if="lines.broadcast">
-            <dt class="label">TV</dt>
-            <dd>{{ lines.broadcast }}</dd>
-          </div>
           <div v-if="lines.venue" class="hidden sm:block">
             <dt class="label">Arena</dt>
             <dd class="truncate">{{ lines.venue }}</dd>

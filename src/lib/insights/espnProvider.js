@@ -57,7 +57,6 @@ export async function getGameLines(date) {
           spread: odds.details || null,
           total: odds.overUnder ?? null,
           homeWinPct: predictor.homeWinPct,
-          broadcast: competition.broadcasts?.[0]?.names?.[0] || null,
           venue: competition.venue?.fullName || null,
           seriesSummary: predictor.seriesSummary,
         },

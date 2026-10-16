@@ -40,7 +40,7 @@ npm run lint
 ## Game insights
 
 The Games page rail (closest matchup, league standings, league leaders) and the
-per-game lines strip (spread, total, win probability, TV) read from ESPN's
+per-game lines strip (spread, total, win probability, arena) read from ESPN's
 public site API (no key, CORS-enabled, unofficial) in
 `src/lib/insights/espnProvider.js`. Before a season's first game, standings and
 leaders fall back to the previous season's final numbers, labelled as such.

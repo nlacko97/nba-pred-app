@@ -43,11 +43,7 @@ const tipTime = computed(() => {
 </script>
 
 <template>
-  <RailPanel
-    v-if="spotlight"
-    title="Closest matchup"
-    :meta="[tipTime, spotlight.lines.broadcast].filter(Boolean).join(' · ')"
-  >
+  <RailPanel v-if="spotlight" title="Closest matchup" :meta="tipTime">
     <div class="flex items-center justify-between gap-2">
       <div
         v-for="side in [

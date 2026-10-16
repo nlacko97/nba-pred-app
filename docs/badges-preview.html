@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Badge Set Preview</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700&family=Big+Shoulders+Display:wght@800;900&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        margin: 0;
+        padding: 32px 16px;
+        font-family: Archivo, system-ui, sans-serif;
+        background: #f3eee3;
+        color: #16130f;
+      }
+      body.dark {
+        background: #0f0e0c;
+        color: #f1ebdd;
+      }
+      h1,
+      h2 {
+        font-family: 'Big Shoulders Display', Impact, sans-serif;
+        text-transform: uppercase;
+        margin: 0 0 12px;
+      }
+      h1 {
+        font-size: 48px;
+      }
+      h2 {
+        font-size: 24px;
+        margin-top: 32px;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+      }
+      figure {
+        margin: 0;
+        width: 136px;
+        text-align: center;
+        font-size: 12px;
+      }
+      .badge svg {
+        width: 120px;
+        height: 120px;
+      }
+      .locked svg {
+        filter: grayscale(1);
+        opacity: 0.35;
+      }
+      button {
+        font: inherit;
+        padding: 6px 12px;
+        border: 1.5px solid currentColor;
+        background: none;
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Badge set</h1>
+    <button onclick="document.body.classList.toggle('dark')">
+      Toggle dark background
+    </button>
+    <div id="groups"></div>
+    <script type="module">
+      const groups = [
+        ['Night — one-night feats', ['perfect-night', 'all-in', 'buzzer-beater', 'contrarian']],
+        ['Run — streaks & consistency', ['hot-hand', 'iron-man', 'oracle', 'team-whisperer', 'upset-hunter']],
+        ['Title — periods & competitions', ['weekly-crown', 'monthly-crown', 'cup-crusher', 'climber']],
+      ]
+      const root = document.getElementById('groups')
+      for (const [title, slugs] of groups) {
+        root.insertAdjacentHTML('beforeend', `<h2>${title}</h2><div class="row"></div>`)
+        const row = root.lastElementChild
+        for (const slug of slugs) {
+          const svg = await fetch(`../src/assets/badges/${slug}.svg`).then(r => r.text())
+          row.insertAdjacentHTML('beforeend', `<figure><div class="badge">${svg}</div><figcaption>${slug}</figcaption></figure>`)
+        }
+        if (title.startsWith('Night')) {
+          const svg = await fetch(`../src/assets/badges/${slugs[0]}.svg`).then(r => r.text())
+          row.insertAdjacentHTML('beforeend', `<figure><div class="badge locked">${svg}</div><figcaption>not yet earned</figcaption></figure>`)
+        }
+      }
+    </script>
+  </body>
+</html>
