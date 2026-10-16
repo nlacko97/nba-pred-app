@@ -69,181 +69,181 @@ const userInTopThree = computed(() => {
 const toggleCollapse = () => {
   isCollapsed.value = !isCollapsed.value
 }
+
+// Podium order: silver, gold, bronze
+const podium = computed(() => {
+  const [first, second, third] = topThree.value
+  return [
+    second && { player: second, place: 2 },
+    first && { player: first, place: 1 },
+    third && { player: third, place: 3 },
+  ].filter(Boolean)
+})
+
+const initial = player =>
+  (player.username || player.user_full_name || '?').charAt(0).toUpperCase()
 </script>
 
 <template>
-  <section v-if="!loading && topThree.length > 0" class="card mb-6">
+  <section v-if="!loading && topThree.length > 0" class="sheet reveal">
     <button
+      type="button"
+      class="flex w-full items-start justify-between gap-3 p-5 text-left"
+      :aria-expanded="!isCollapsed"
       @click="toggleCollapse"
-      class="card-header flex justify-between items-center w-full text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
     >
-      <h2 class="text-lg font-bold flex items-center gap-2">
-        Last Day's Winners
-        <span class="text-xs font-normal text-gray-500 dark:text-gray-400 ml-2"
-          >({{ formattedDate }})</span
-        >
-        <!-- Loading indicator -->
-        <svg
-          v-if="loading"
-          class="animate-spin h-4 w-4 text-blue-500"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            class="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            stroke-width="4"
-          ></circle>
-          <path
-            class="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          ></path>
-        </svg>
-      </h2>
+      <span>
+        <span class="display block text-3xl">Top performers</span>
+        <span class="label mt-2 block !tracking-[0.14em]">{{
+          formattedDate
+        }}</span>
+      </span>
       <svg
-        class="w-5 h-5 text-gray-500 dark:text-gray-400 transition-transform duration-200"
+        class="mt-1 h-5 w-5 shrink-0 transition-transform duration-300"
         :class="{ 'rotate-180': !isCollapsed }"
         fill="none"
         stroke="currentColor"
+        stroke-width="2.5"
         viewBox="0 0 24 24"
       >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M19 9l-7 7-7-7"
-        />
+        <path stroke-linecap="square" d="M19 9l-7 7-7-7" />
       </svg>
     </button>
 
-    <div v-show="!isCollapsed" class="p-4 transition-all duration-200">
-      <!-- Top 3 Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+    <div v-show="!isCollapsed" class="px-5 pb-5">
+      <!-- Podium -->
+      <div class="grid grid-cols-3 items-end gap-2">
         <div
-          v-for="(player, index) in topThree"
-          :key="player.user_id"
-          class="relative flex items-center p-4 rounded-xl border transition-all duration-300 bg-white dark:bg-gray-800/50"
-          :class="[
-            player.user_id === userId
-              ? 'ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-gray-900 border-blue-200 dark:border-blue-800'
-              : 'border-gray-100 dark:border-gray-700',
-          ]"
+          v-for="step in podium"
+          :key="step.player.user_id"
+          class="flex min-w-0 flex-col items-center text-center"
         >
-          <!-- Rank -->
-          <div
-            class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 dark:bg-gray-700/50 mr-3 font-mono font-bold text-gray-500 dark:text-gray-400"
+          <span
+            class="avatar mb-2 h-11 w-11 border-[1.5px] border-edge"
+            :class="{
+              '!h-14 !w-14': step.place === 1,
+              'outline outline-2 outline-offset-2 outline-accent':
+                step.player.user_id === userId,
+            }"
           >
-            {{ index + 1 }}
-          </div>
-
-          <!-- Avatar -->
-          <div class="flex-shrink-0 mr-3">
             <img
-              v-if="player.avatar_url"
-              :src="player.avatar_url"
-              :alt="player.username"
-              class="w-10 h-10 rounded-full object-cover ring-2 ring-white dark:ring-gray-800 shadow-sm"
+              v-if="step.player.avatar_url"
+              :src="step.player.avatar_url"
+              :alt="step.player.username"
+              referrerpolicy="no-referrer"
             />
-            <div
-              v-else
-              class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white font-bold text-xs ring-2 ring-white dark:ring-gray-800 shadow-sm"
+            <template v-else>{{ initial(step.player) }}</template>
+          </span>
+          <p class="w-full truncate text-xs font-bold">
+            {{ step.player.user_full_name }}
+          </p>
+          <p class="num text-[0.6875rem] text-muted">
+            {{ step.player.correct_picks }}/{{ step.player.total_picks }} ·
+            {{ Math.round(step.player.accuracy) }}%
+          </p>
+          <div class="step mt-2" :class="`step--${step.place}`">
+            <span class="step__place">{{ step.place }}</span>
+            <span class="step__pts num"
+              >{{ step.player.points }}<small>pts</small></span
             >
-              {{
-                (player.username || player.user_full_name || '?')
-                  .charAt(0)
-                  .toUpperCase()
-              }}
-            </div>
-          </div>
-
-          <!-- Player Info -->
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-bold truncate text-gray-900 dark:text-white">
-              {{ player.user_full_name }}
-            </p>
-            <div
-              class="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mt-1"
-            >
-              <span
-                class="font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded"
-              >
-                {{ player.points }} Pts
-              </span>
-              <span class="flex items-center gap-1">
-                {{ player.correct_picks }}/{{ player.total_picks }}
-                <span class="text-gray-300 dark:text-gray-600">|</span>
-                {{ Math.round(player.accuracy) }}%
-              </span>
-            </div>
           </div>
         </div>
       </div>
 
-      <!-- User Comparison (if not in top 3) -->
+      <!-- User comparison (if not in top 3) -->
       <div
         v-if="userResults && !userInTopThree"
-        class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800"
+        class="mt-4 flex items-center gap-3 border-[1.5px] border-dashed border-accent p-3"
       >
-        <div class="flex items-center justify-between text-sm mb-2">
-          <span class="text-gray-500 dark:text-gray-400 font-medium"
-            >Your Performance</span
-          >
+        <span class="display num w-10 text-3xl text-accent">{{
+          dailyResultsStore.userRank
+        }}</span>
+        <span class="avatar h-9 w-9">
+          <img
+            v-if="userResults.avatar_url"
+            :src="userResults.avatar_url"
+            alt=""
+            referrerpolicy="no-referrer"
+          />
+          <template v-else>{{ initial(userResults) }}</template>
+        </span>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold leading-none">You</p>
+          <p class="num mt-1 text-xs text-muted">
+            {{ userResults.correct_picks }}/{{ userResults.total_picks }} ·
+            {{ Math.round(userResults.accuracy) }}%
+          </p>
         </div>
-        <div
-          class="flex items-center p-4 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/30 dark:bg-blue-900/10"
+        <span class="display num text-2xl"
+          >{{ userResults.points || 0
+          }}<small class="ml-0.5 text-xs font-bold normal-case text-muted"
+            >pts</small
+          ></span
         >
-          <div
-            class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-300 font-bold text-sm mr-3 font-mono"
-          >
-            #{{ dailyResultsStore.userRank }}
-          </div>
-
-          <!-- User Avatar -->
-          <div class="flex-shrink-0 mr-3">
-            <img
-              v-if="userResults.avatar_url"
-              :src="userResults.avatar_url"
-              class="w-10 h-10 rounded-full object-cover ring-2 ring-white dark:ring-gray-800"
-            />
-            <div
-              v-else
-              class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-xs ring-2 ring-white dark:ring-gray-800"
-            >
-              {{
-                (userResults.username || userResults.user_full_name || 'Y')
-                  .charAt(0)
-                  .toUpperCase()
-              }}
-            </div>
-          </div>
-
-          <div class="flex-1 min-w-0">
-            <p class="font-semibold text-gray-900 dark:text-white">You</p>
-            <div class="flex items-center gap-3 text-xs font-medium mt-1">
-              <span
-                class="text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50 px-1.5 py-0.5 rounded"
-                >{{ userResults.points || 0 }} Pts</span
-              >
-              <span class="text-gray-500 dark:text-gray-400">
-                {{ userResults.correct_picks }}/{{ userResults.total_picks }}
-                <span class="mx-1 opacity-50">|</span>
-                {{ Math.round(userResults.accuracy) }}%
-              </span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </section>
 </template>
 
 <style scoped>
-.cup-card {
-  @apply border-amber-200 dark:border-amber-800 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30;
+.step {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0 0.5rem;
+  border: 1.5px solid rgb(var(--c-edge));
+  background: repeating-linear-gradient(
+      -45deg,
+      rgb(var(--c-ink) / 0.07) 0 2px,
+      transparent 2px 6px
+    ),
+    rgb(var(--c-paper));
+  transform-origin: bottom;
+  animation: rise 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.step--1 {
+  height: 112px;
+  background: rgb(var(--c-ink));
+  color: rgb(var(--c-paper));
+  animation-delay: 0.25s;
+}
+.step--2 {
+  height: 84px;
+  animation-delay: 0.1s;
+}
+.step--3 {
+  height: 64px;
+  animation-delay: 0.4s;
+}
+.step__place {
+  font-family: 'Big Shoulders Display', Impact, sans-serif;
+  font-weight: 900;
+  font-size: 2rem;
+  line-height: 1;
+}
+.step--1 .step__place {
+  font-size: 2.8rem;
+}
+.step__pts {
+  font-family: 'Big Shoulders Display', Impact, sans-serif;
+  font-weight: 800;
+  font-size: 1rem;
+  line-height: 1;
+}
+.step__pts small {
+  margin-left: 2px;
+  font-size: 0.65rem;
+  opacity: 0.75;
+}
+@keyframes rise {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
 }
 </style>

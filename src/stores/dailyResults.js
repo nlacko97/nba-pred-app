@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabaseClient'
+import { addDays, gameDayIso } from '../lib/season'
 
 export const useDailyResultsStore = defineStore('dailyResults', () => {
   const userResults = ref(null)
@@ -47,13 +48,11 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
 
   // Find the most recent date with completed games
   const findLastGameDate = async () => {
-    const today = new Date()
-    let searchDate = new Date(today)
-    searchDate.setDate(searchDate.getDate() - 1) // Start with yesterday
+    const today = gameDayIso()
 
-    // Search backwards up to 7 days to find last game day
-    for (let i = 0; i < 7; i++) {
-      const dateStr = searchDate.toISOString().split('T')[0]
+    // Search backwards up to 7 days, starting with yesterday
+    for (let i = 1; i <= 7; i++) {
+      const dateStr = addDays(today, -i)
       const { data, error } = await supabase
         .from('games')
         .select('date, status')
@@ -79,8 +78,6 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
         lastGameDate.value = dateStr
         return dateStr
       }
-
-      searchDate.setDate(searchDate.getDate() - 1)
     }
 
     return null
@@ -115,7 +112,10 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
       .eq('status', 'resolved')
 
     if (allStarMarketError && allStarMarketError.code !== '42P01') {
-      console.error('Error fetching all-star markets for date:', allStarMarketError)
+      console.error(
+        'Error fetching all-star markets for date:',
+        allStarMarketError,
+      )
       return []
     }
 
@@ -173,7 +173,10 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
     }
 
     const allUserIds = Array.from(
-      new Set([...picks.map(pick => pick.user_id), ...allStarPicks.map(pick => pick.user_id)]),
+      new Set([
+        ...picks.map(pick => pick.user_id),
+        ...allStarPicks.map(pick => pick.user_id),
+      ]),
     )
     const profileMap = await getProfileMap(allUserIds)
 
@@ -197,7 +200,8 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
         if (pick.correct) {
           userStats[pick.user_id].correct_picks++
           userStats[pick.user_id].points +=
-            (pick.confidence_score || 1) * (pick.all_star_markets?.multiplier || 1)
+            (pick.confidence_score || 1) *
+            (pick.all_star_markets?.multiplier || 1)
         }
       })
     }
@@ -231,8 +235,7 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
   const isCacheStale = () => {
     if (!lastFetchDate.value) return true
 
-    const today = new Date().toISOString().split('T')[0]
-    return lastFetchDate.value !== today
+    return lastFetchDate.value !== gameDayIso()
   }
 
   // Clear stale cache
@@ -281,7 +284,7 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
       // Derive user results from all results to ensure consistent data (including points)
       userResults.value = allRes.find(p => p.user_id === userId) || null
       initialized.value = true
-      lastFetchDate.value = new Date().toISOString().split('T')[0]
+      lastFetchDate.value = gameDayIso()
     } catch (err) {
       console.error('Error initializing daily results:', err)
     } finally {

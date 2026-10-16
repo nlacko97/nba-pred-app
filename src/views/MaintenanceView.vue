@@ -1,9 +1,11 @@
 <template>
-  <div class="flex items-center justify-center min-h-screen bg-gray-100">
-    <div class="text-center">
-      <h1 class="text-4xl font-bold text-gray-800 mb-4">Maintenance 🧺</h1>
-      <p class="text-xl text-gray-600">Please hold, making changes before 2026 season 🚀</p>
-    </div>
+  <div
+    class="flex min-h-screen flex-col items-center justify-center bg-paper px-6 text-center text-ink"
+  >
+    <h1 class="display mt-2 text-[clamp(4rem,14vw,10rem)]">
+      Down for <span class="text-accent">maintenance</span>
+    </h1>
+    <p class="label mt-6">Back shortly</p>
   </div>
 </template>
 

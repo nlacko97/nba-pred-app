@@ -21,123 +21,135 @@ const emit = defineEmits(['update:modelValue'])
 
 const hoverRating = ref(0)
 
-const stars = computed(() =>
+const chips = computed(() =>
   Array.from({ length: props.maxStars }, (_, i) => i + 1),
 )
 
-const confidenceBadge = computed(() => {
-  const rating = hoverRating.value || props.modelValue
-  switch (rating) {
+const shownRating = computed(() => hoverRating.value || props.modelValue)
+
+const levelLabel = computed(() => {
+  switch (shownRating.value) {
     case 1:
-      return {
-        label: 'Conservative',
-        color: 'from-blue-500 to-blue-600',
-        light: 'bg-blue-50 text-blue-700',
-      }
+      return 'Low'
     case 2:
-      return {
-        label: 'Moderate',
-        color: 'from-purple-500 to-purple-600',
-        light: 'bg-purple-50 text-purple-700',
-      }
+      return 'Medium'
     case 3:
-      return {
-        label: 'High Confidence',
-        color: 'from-amber-500 to-amber-600',
-        light: 'bg-amber-50 text-amber-700',
-      }
+      return 'High'
     default:
-      return {
-        label: 'Select',
-        color: 'from-gray-500 to-gray-600',
-        light: 'bg-gray-50 text-gray-700',
-      }
+      return 'Select'
   }
 })
 
-const handleMouseEnter = starNumber => {
-  if (!props.disabled) {
-    hoverRating.value = starNumber
-  }
+const handleMouseEnter = chip => {
+  if (!props.disabled) hoverRating.value = chip
 }
 
 const handleMouseLeave = () => {
-  if (!props.disabled) {
-    hoverRating.value = 0
-  }
+  hoverRating.value = 0
 }
 
-const handleClick = starNumber => {
-  if (!props.disabled) {
-    emit('update:modelValue', starNumber)
-  }
+const handleClick = chip => {
+  if (!props.disabled) emit('update:modelValue', chip)
 }
 </script>
 
 <template>
-  <div class="flex flex-col gap-3 w-full">
-    <div class="flex w-full justify-center">
-      <span class="text-sm font-semibold text-gray-700 dark:text-gray-200"
-        >Confidence</span
-      >
+  <div
+    class="flex items-center gap-3"
+    :class="{ 'opacity-60': disabled }"
+    @mouseleave="handleMouseLeave"
+  >
+    <div class="flex flex-col leading-none">
+      <span class="label">Confidence</span>
+      <span class="mt-1 font-display text-lg font-extrabold uppercase">
+        <span class="num text-accent">{{ shownRating }}×</span>
+        {{ levelLabel }}
+      </span>
     </div>
 
-    <!-- Segmented control -->
     <div
-      class="flex justify-center"
+      class="flex items-center gap-1.5"
       role="radiogroup"
       aria-label="Confidence level"
     >
-      <div
-        class="inline-flex items-center gap-1 rounded-full border border-gray-200 dark:border-gray-700 p-1 bg-white dark:bg-gray-900 shadow-sm"
+      <button
+        v-for="chip in chips"
+        :key="chip"
+        type="button"
+        role="radio"
+        class="chip"
+        :class="{
+          'is-filled': chip <= shownRating,
+          'is-preview': hoverRating && chip <= hoverRating,
+        }"
+        :aria-checked="modelValue === chip"
+        :aria-label="`Confidence ${chip}`"
+        :disabled="disabled"
+        @mouseenter="handleMouseEnter(chip)"
+        @focus="handleMouseEnter(chip)"
+        @blur="handleMouseLeave"
+        @click="handleClick(chip)"
       >
-        <button
-          v-for="star in stars"
-          :key="star"
-          type="button"
-          :aria-checked="(hoverRating || modelValue) === star"
-          role="radio"
-          :disabled="disabled"
-          @mouseenter="handleMouseEnter(star)"
-          @mouseleave="handleMouseLeave"
-          @click="handleClick(star)"
-          :class="[
-            'px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 dark:focus:ring-offset-gray-900',
-            disabled ? 'cursor-not-allowed opacity-60' : 'hover:shadow',
-            (hoverRating || modelValue) === 1 && star === 1
-              ? 'text-white bg-gradient-to-r from-blue-500 to-blue-600 shadow'
-              : '',
-            (hoverRating || modelValue) === 2 && star === 2
-              ? 'text-white bg-gradient-to-r from-purple-500 to-purple-600 shadow'
-              : '',
-            (hoverRating || modelValue) === 3 && star === 3
-              ? 'text-white bg-gradient-to-r from-amber-500 to-amber-600 shadow'
-              : '',
-            (hoverRating || modelValue) !== star
-              ? 'text-gray-700 dark:text-gray-300'
-              : '',
-          ]"
-        >
-          <span class="inline-flex items-center gap-1">
-            <span class="font-semibold tabular-nums">{{ star }}</span>
-            <span class="text-amber-400">★</span>
-            <span class="hidden sm:inline text-xs opacity-80">{{
-              star === 1 ? 'Low' : star === 2 ? 'Medium' : 'High'
-            }}</span>
-          </span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Descriptor badge -->
-    <div
-      :class="[
-        'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-center',
-        confidenceBadge.light,
-        disabled ? 'opacity-50' : '',
-      ]"
-    >
-      {{ confidenceBadge.label }}
+        <span class="num">{{ chip }}</span>
+      </button>
     </div>
   </div>
 </template>
+
+<style scoped>
+.chip {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Big Shoulders Display', Impact, sans-serif;
+  font-weight: 900;
+  font-size: 1rem;
+  color: rgb(var(--c-muted));
+  border: 1.5px solid rgb(var(--c-ink) / 0.3);
+  background: transparent;
+  transition:
+    transform 0.25s cubic-bezier(0.5, 1.8, 0.4, 1),
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.chip::before {
+  /* the dashed edge-spots of a casino chip */
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: inherit;
+  border: 2px dashed transparent;
+  transition: border-color 0.15s ease;
+}
+.chip:not(:disabled) {
+  cursor: pointer;
+}
+.chip:not(:disabled):hover {
+  transform: translateY(-3px);
+}
+.chip.is-filled {
+  color: #fff;
+  background: rgb(var(--c-accent-fill));
+  border-color: rgb(var(--c-accent-fill));
+  box-shadow: 0 3px 0 rgb(var(--c-ink) / 0.85);
+}
+.chip.is-filled::before {
+  border-color: rgb(255 255 255 / 0.75);
+}
+.chip.is-preview {
+  background: rgb(var(--c-accent-fill) / 0.85);
+}
+@media (pointer: coarse) {
+  .chip {
+    width: 44px;
+    height: 44px;
+  }
+}
+.chip:disabled {
+  cursor: not-allowed;
+}
+</style>

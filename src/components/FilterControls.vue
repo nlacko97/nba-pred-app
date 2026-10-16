@@ -1,7 +1,7 @@
 <script setup>
-import { ref } from 'vue'
+import { CURRENT_SEASON, FIRST_SEASON, seasonLabel } from '@/lib/season'
 
-defineProps({
+const props = defineProps({
   selectedSeason: {
     type: String,
     required: true,
@@ -14,70 +14,53 @@ defineProps({
 
 const emit = defineEmits(['update-filters'])
 
-const localSeason = ref(null)
-const localPostseason = ref(null)
-
-const seasons = [
-  { value: '2025', label: '2025-26' },
-  { value: '2024', label: '2024-25' },
-]
+// Newest first: 2026–27, 2025–26, …
+const seasons = Array.from(
+  { length: CURRENT_SEASON - FIRST_SEASON + 1 },
+  (_, i) => {
+    const season = CURRENT_SEASON - i
+    return { value: String(season), label: seasonLabel(season) }
+  },
+)
 
 const handleSeasonChange = season => {
-  localSeason.value = season
-  emit('update-filters', season, localPostseason.value ?? false)
+  emit('update-filters', season, props.isPostseason)
 }
 
 const handleModeChange = postseason => {
-  localPostseason.value = postseason
-  const season = localSeason.value ?? '2025'
-  emit('update-filters', season, postseason)
+  emit('update-filters', props.selectedSeason, postseason)
 }
 </script>
 
 <template>
-  <div
-    class="mb-8 flex flex-col sm:flex-row gap-4 items-center justify-between"
-  >
-    <!-- Season Selector -->
-    <div class="flex gap-2">
+  <div class="flex flex-wrap items-center gap-3">
+    <div class="seg" role="group" aria-label="Season">
       <button
         v-for="season in seasons"
         :key="season.value"
+        type="button"
+        :class="{ 'is-on': selectedSeason === season.value }"
+        :aria-pressed="selectedSeason === season.value"
         @click="handleSeasonChange(season.value)"
-        :class="[
-          'px-6 py-2 rounded-lg font-medium text-sm transition-all duration-200',
-          selectedSeason === season.value
-            ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900'
-            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700',
-        ]"
       >
         {{ season.label }}
       </button>
     </div>
 
-    <div class="w-px h-6 bg-gray-200 dark:bg-gray-700 hidden sm:block"></div>
-
-    <!-- Mode Selector -->
-    <div class="flex gap-2 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+    <div class="seg" role="group" aria-label="Season phase">
       <button
+        type="button"
+        :class="{ 'is-on': !isPostseason }"
+        :aria-pressed="!isPostseason"
         @click="handleModeChange(false)"
-        :class="[
-          'px-5 py-1.5 rounded-md font-medium text-sm transition-all duration-200',
-          !isPostseason
-            ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300',
-        ]"
       >
         Regular
       </button>
       <button
+        type="button"
+        :class="{ 'is-on': isPostseason }"
+        :aria-pressed="isPostseason"
         @click="handleModeChange(true)"
-        :class="[
-          'px-5 py-1.5 rounded-md font-medium text-sm transition-all duration-200',
-          isPostseason
-            ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300',
-        ]"
       >
         Postseason
       </button>

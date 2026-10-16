@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '../lib/supabaseClient'
+import { CURRENT_SEASON, addDays, gameDayIso } from '../lib/season'
 
 export const useLeaderboardStore = defineStore('leaderboard', () => {
   const users = ref([])
@@ -9,7 +10,7 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
   const yesterdayReport = ref(null)
   const teams = ref([])
   const loadingTeams = ref(false)
-  const selectedSeason = ref('2025')
+  const selectedSeason = ref(String(CURRENT_SEASON))
   const expandedUsers = ref(new Set())
   const isLeaderboardPlayoff = ref(true)
   const initialized = ref(false)
@@ -30,11 +31,7 @@ export const useLeaderboardStore = defineStore('leaderboard', () => {
     expandedUsers.value = new Set(expandedUsers.value) // Trigger reactivity
   }
 
-  const formatYesterdayToDateString = () => {
-    const date = new Date()
-    date.setDate(date.getDate() - 1)
-    return date.toISOString().split('T')[0]
-  }
+  const formatYesterdayToDateString = () => addDays(gameDayIso(), -1)
 
   const getUsers = async (postseason = true) => {
     isLeaderboardPlayoff.value = postseason

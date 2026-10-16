@@ -1,10 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabaseClient'
+import { CURRENT_SEASON } from '../lib/season'
 
 export const useLeaderboardStatsStore = defineStore('leaderboardStats', () => {
   const stats = ref([])
-  const selectedSeason = ref('2025')
+  const selectedSeason = ref(String(CURRENT_SEASON))
   const isPostseason = ref(false)
   const loading = ref(false)
   const cache = ref({})
@@ -50,7 +51,8 @@ export const useLeaderboardStatsStore = defineStore('leaderboardStats', () => {
       if (pick.correct) {
         acc[pick.user_id].correct_picks += 1
         acc[pick.user_id].total_score +=
-          (pick.confidence_score || 1) * (pick.all_star_markets?.multiplier || 1)
+          (pick.confidence_score || 1) *
+          (pick.all_star_markets?.multiplier || 1)
       }
       return acc
     }, {})
@@ -133,7 +135,11 @@ export const useLeaderboardStatsStore = defineStore('leaderboardStats', () => {
         return
       }
 
-      const mergedStats = await mergeAllStarStats(data || [], season, postseason)
+      const mergedStats = await mergeAllStarStats(
+        data || [],
+        season,
+        postseason,
+      )
       stats.value = mergedStats
       cache.value[cacheKey] = mergedStats
     } catch (error) {

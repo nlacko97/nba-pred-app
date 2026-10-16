@@ -8,13 +8,22 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 
 console.log('Hello from Functions!')
 
+// Look back two days so a game that was not Final on the first run
+// (late overtime, delayed cron) still gets scored on the next one
+const LOOKBACK_DAYS = 2
+
 Deno.serve(async req => {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
   )
 
-  const games = await fetchGamesFromYesterday()
+  const dates = []
+  for (let i = 1; i <= LOOKBACK_DAYS; i++) {
+    dates.push(formatDateToString(-i))
+  }
+
+  const games = await fetchGamesFromDates(currentSeason(), dates)
   console.log(`found ${games.length} games`)
   const toUpsert = []
   for (const game of games) {
@@ -31,18 +40,28 @@ Deno.serve(async req => {
       away_team_score: game.visitor_team_score,
     })
   }
-  const upsertResponse = await supabase.from('games').upsert(toUpsert)
-  // console.log(upsertResponse)
+  const { error: gamesError } = await supabase.from('games').upsert(toUpsert)
+  if (gamesError) {
+    console.error(gamesError)
+  }
 
-  let { data } = await supabase
+  const { data, error } = await supabase
     .from('games')
     .select('*, home_team:home_team_id(*),away_team:away_team_id(*),picks(*)')
-    .eq('date', formatYesterdayToDateString())
+    .in('date', dates)
     .order('date', { ascending: true })
+  if (error) {
+    console.error(error)
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
+  }
 
   const picksToUpdate = []
   for (const game of data) {
-    if (game.home_team_score === 0 && game.away_team_score === 0) {
+    // Only score finished games; in-progress or postponed ones wait
+    if (game.status !== 'Final') {
       continue
     }
     const winner =
@@ -54,7 +73,12 @@ Deno.serve(async req => {
       picksToUpdate.push(pick)
     }
   }
-  const upsertPicksResponse = await supabase.from('picks').upsert(picksToUpdate)
+  const { error: picksError } = await supabase
+    .from('picks')
+    .upsert(picksToUpdate)
+  if (picksError) {
+    console.error(picksError)
+  }
   console.log(`updating ${picksToUpdate.length} picks`)
 
   return new Response(JSON.stringify('success\n'), {
@@ -62,18 +86,30 @@ Deno.serve(async req => {
   })
 })
 
-function formatYesterdayToDateString() {
+function formatDateToString(daysToAdd = 0) {
   const date = new Date()
-  date.setDate(date.getDate() - 1)
+  date.setDate(date.getDate() + daysToAdd)
   return date.toISOString().split('T')[0]
 }
 
-async function fetchGamesFromYesterday() {
+// A season is named after the year it tips off: Sep 2026 – Aug 2027 is 2026.
+// NBA_SEASON overrides it, e.g. to rescore an older season.
+function currentSeason() {
+  const override = Deno.env.get('NBA_SEASON')
+  if (override) return parseInt(override)
+  const now = new Date()
+  return now.getUTCMonth() >= 8
+    ? now.getUTCFullYear()
+    : now.getUTCFullYear() - 1
+}
+
+async function fetchGamesFromDates(season, dates) {
   let cursor = undefined
   let counter = 1
   const games = []
+  const datesParam = dates.map(d => `dates[]=${d}`).join('&')
   do {
-    let url = `https://api.balldontlie.io/v1/games?seasons[]=2025&dates[]=${formatYesterdayToDateString()}&per_page=100`
+    let url = `https://api.balldontlie.io/v1/games?seasons[]=${season}&${datesParam}&per_page=100`
     if (cursor) {
       url = url.concat(`&cursor=${cursor}`)
     }

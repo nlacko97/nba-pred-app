@@ -1,0 +1,127 @@
+import { matchupKey, toAppAbbr } from './teams'
+
+// ESPN's public site API: no key required and CORS-enabled, but unofficial
+// and undocumented, so every field is read defensively.
+
+export const isMock = false
+
+const SITE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba'
+const SITE_V3 = 'https://site.api.espn.com/apis/site/v3/sports/basketball/nba'
+const STANDINGS =
+  'https://site.api.espn.com/apis/v2/sports/basketball/nba/standings'
+
+async function getJson(url) {
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`ESPN ${response.status}: ${url}`)
+  return response.json()
+}
+
+async function getPredictor(eventId) {
+  try {
+    const summary = await getJson(`${SITE}/summary?event=${eventId}`)
+    const projection = parseFloat(summary.predictor?.homeTeam?.gameProjection)
+    return {
+      homeWinPct: Number.isFinite(projection) ? projection : null,
+      seriesSummary: summary.seasonseries?.[0]?.summary || null,
+    }
+  } catch (error) {
+    console.error('Error fetching ESPN summary:', error)
+    return { homeWinPct: null, seriesSummary: null }
+  }
+}
+
+export async function getGameLines(date) {
+  const scoreboard = await getJson(
+    `${SITE}/scoreboard?dates=${date.replaceAll('-', '')}`,
+  )
+
+  const entries = await Promise.all(
+    (scoreboard.events || []).map(async event => {
+      const competition = event.competitions?.[0] || {}
+      const teams = competition.competitors || []
+      const home = teams.find(team => team.homeAway === 'home')
+      const away = teams.find(team => team.homeAway === 'away')
+      if (!home || !away) return null
+
+      const odds = competition.odds?.[0] || {}
+      const isUpcoming = event.status?.type?.state === 'pre'
+      const predictor = isUpcoming
+        ? await getPredictor(event.id)
+        : { homeWinPct: null, seriesSummary: null }
+
+      return [
+        matchupKey(
+          toAppAbbr(away.team?.abbreviation),
+          toAppAbbr(home.team?.abbreviation),
+        ),
+        {
+          spread: odds.details || null,
+          total: odds.overUnder ?? null,
+          homeWinPct: predictor.homeWinPct,
+          broadcast: competition.broadcasts?.[0]?.names?.[0] || null,
+          venue: competition.venue?.fullName || null,
+          seriesSummary: predictor.seriesSummary,
+        },
+      ]
+    }),
+  )
+
+  return Object.fromEntries(entries.filter(Boolean))
+}
+
+export async function getStandings() {
+  const data = await getJson(STANDINGS)
+  const conference = name => {
+    const group = (data.children || []).find(child =>
+      child.name?.startsWith(name),
+    )
+    return (group?.standings?.entries || [])
+      .map(entry => {
+        const stats = Object.fromEntries(
+          (entry.stats || []).map(stat => [stat.name, stat.displayValue]),
+        )
+        return {
+          abbr: toAppAbbr(entry.team?.abbreviation),
+          wins: Number(stats.wins) || 0,
+          losses: Number(stats.losses) || 0,
+          gamesBehind: stats.gamesBehind ?? '-',
+          streak: stats.streak || '',
+          seed: Number(stats.playoffSeed) || 99,
+        }
+      })
+      .sort((a, b) => a.seed - b.seed)
+      .slice(0, 8)
+  }
+  return { east: conference('Eastern'), west: conference('Western') }
+}
+
+const LEADER_CATEGORIES = {
+  pointsPerGame: 'Points',
+  reboundsPerGame: 'Rebounds',
+  assistsPerGame: 'Assists',
+  fieldGoalPercentage: 'Field goal %',
+}
+
+const categoryOrder = Object.values(LEADER_CATEGORIES)
+
+export async function getLeaders() {
+  const data = await getJson(`${SITE_V3}/leaders`)
+  return (data.leaders?.categories || [])
+    .filter(category => LEADER_CATEGORIES[category.name])
+    .map(category => {
+      const leader = category.leaders?.[0] || {}
+      return {
+        category: LEADER_CATEGORIES[category.name],
+        abbr: category.abbreviation,
+        value: leader.displayValue,
+        player: leader.athlete?.displayName,
+        team: toAppAbbr(
+          leader.team?.abbreviation || leader.athlete?.team?.abbreviation,
+        ),
+      }
+    })
+    .sort(
+      (a, b) =>
+        categoryOrder.indexOf(a.category) - categoryOrder.indexOf(b.category),
+    )
+}

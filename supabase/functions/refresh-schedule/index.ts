@@ -4,94 +4,48 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 console.log('Refresh schedules function!')
 
 Deno.serve(async req => {
-  // LOCAL CLIENT
+  // MY_* lets a locally served function target another project;
+  // deployed functions get SUPABASE_* injected by the platform
   const supabase = createClient(
-    Deno.env.get('MY_SUPABASE_URL') ?? '',
-    Deno.env.get('MY_SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    Deno.env.get('MY_SUPABASE_URL') ?? Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('MY_SUPABASE_SERVICE_ROLE_KEY') ??
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ??
+      '',
   )
-  // DEPLOYED CLIENT
-  // const supabase = createClient(
-  //   Deno.env.get('SUPABASE_URL') ?? '',
-  //   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-  // )
 
   const dates = []
   for (let i = 0; i <= 30; i++) {
     dates.push(formatDateToString(i))
   }
 
-  const games = await fetchGamesFromDates(dates)
-  console.log(`found ${games.length} games on balldontlie api`)
-  const foundGamesIds = games.map(g => parseInt(g.id))
-  console.log(
-    `found ${new Set(foundGamesIds).size} unique game ids on balldontlie api`,
-  )
+  const season = currentSeason()
+  const games = await fetchGamesFromDates(season, dates)
+  console.log(`found ${games.length} games on balldontlie api for ${season}`)
 
-  const { data: gamesOnServer, error } = await supabase
-    .from('games')
-    .select('id')
-    .in('id', [])
+  // One upsert both inserts new games and refreshes existing ones
+  const toUpsert = games.map(game => ({
+    id: game.id,
+    date: game.date,
+    home_team_id: game.home_team.id,
+    away_team_id: game.visitor_team.id,
+    season: game.season,
+    period: game.period,
+    time: game.time,
+    status: game.status,
+    home_team_score: game.home_team_score,
+    away_team_score: game.visitor_team_score,
+    postseason: game.postseason,
+  }))
+
+  const { error } = await supabase.from('games').upsert(toUpsert)
   if (error) {
     console.error(error)
-  }
-  console.log(gamesOnServer)
-  console.log(`found ${gamesOnServer?.length} games on server`)
-  const gameIdsOnServer = gamesOnServer.map(g => g.id)
-
-  const missingIds = foundGamesIds.filter(idw => {
-    if (!gameIdsOnServer.includes(idw)) {
-      console.log(`checking for ${idw}`)
-      console.log(!gameIdsOnServer.includes(idw))
-    }
-
-    return !gameIdsOnServer.includes(idw)
-  })
-
-  console.log(`found ${missingIds.length} missing ids: ${missingIds.join(',')}`)
-
-  const missingGames = games.filter(g => missingIds.includes(g.id))
-  for (const missingGame of missingGames) {
-    console.log('inserting')
-    console.log(missingGame)
-
-    const response = await supabase.from('games').insert({
-      id: missingGame.id,
-      date: missingGame.date,
-      home_team_id: missingGame.home_team.id,
-      away_team_id: missingGame.visitor_team.id,
-      season: missingGame.season,
-      period: missingGame.period,
-      time: missingGame.time,
-      status: missingGame.status,
-      home_team_score: missingGame.home_team_score,
-      away_team_score: missingGame.visitor_team_score,
-      postseason: missingGame.postseason,
-    })
-    console.log(response)
-  }
-
-  console.log(`inserted ${missingGames.length} games`)
-
-  // upsert found game data to update information
-  const toUpsert = []
-  const gamesToUpdate = games.filter(g => gameIdsOnServer.includes(g.id))
-  for (const game of gamesToUpdate) {
-    toUpsert.push({
-      id: game.id,
-      date: game.date,
-      home_team_id: game.home_team.id,
-      away_team_id: game.visitor_team.id,
-      season: game.season,
-      period: game.period,
-      time: game.time,
-      status: game.status,
-      home_team_score: game.home_team_score,
-      away_team_score: game.visitor_team_score,
-      postseason: game.postseason,
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
     })
   }
-  await supabase.from('games').upsert(toUpsert)
-  console.log(`updated ${toUpsert.length} existing games`)
+  console.log(`upserted ${toUpsert.length} games`)
 
   return new Response(JSON.stringify('success\n'), {
     headers: { 'Content-Type': 'application/json' },
@@ -104,20 +58,34 @@ function formatDateToString(daysToAdd = 0) {
   return date.toISOString().split('T')[0]
 }
 
-async function fetchGamesFromDates(dates) {
+// A season is named after the year it tips off: Sep 2026 – Aug 2027 is 2026.
+// NBA_SEASON overrides it, e.g. to backfill an older season.
+function currentSeason() {
+  const override = Deno.env.get('NBA_SEASON')
+  if (override) return parseInt(override)
+  const now = new Date()
+  return now.getUTCMonth() >= 8
+    ? now.getUTCFullYear()
+    : now.getUTCFullYear() - 1
+}
+
+async function fetchGamesFromDates(season, dates) {
   let cursor = undefined
   const games = []
   const datesParam = dates.map(d => `dates[]=${d}`).join('&')
   do {
-    console.log('making request')
-    let url = `https://api.balldontlie.io/v1/games?seasons[]=2025&${datesParam}&per_page=100`
+    let url = `https://api.balldontlie.io/v1/games?seasons[]=${season}&${datesParam}&per_page=100`
     if (cursor) {
       url = url.concat(`&cursor=${cursor}`)
     }
-    console.log(url)
     const response = await fetch(url, {
       headers: { Authorization: Deno.env.get('BALLDONTLIE_API_KEY') ?? '' },
     })
+    if (!response.ok) {
+      throw new Error(
+        `balldontlie ${response.status}: ${await response.text()}`,
+      )
+    }
     const { data, meta } = await response.json()
 
     cursor = meta.next_cursor
