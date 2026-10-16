@@ -25,7 +25,8 @@ const injuries = computed(() =>
     ])
     .sort(
       (a, b) =>
-        Number(b.status.includes('Out')) - Number(a.status.includes('Out')),
+        Number(!!b.status?.includes('Out')) -
+        Number(!!a.status?.includes('Out')),
     ),
 )
 </script>

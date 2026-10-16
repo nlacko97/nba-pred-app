@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { gameDayIso } from '../lib/season'
+import { addDays, gameDayIso, weekStart as mondayOf } from '../lib/season'
 
 const props = defineProps({
   modelValue: {
@@ -14,25 +14,16 @@ const emit = defineEmits(['update:modelValue'])
 // Dates are 'YYYY-MM-DD' strings, matching the games store
 const todayIso = gameDayIso()
 const toUtcDate = iso => new Date(`${iso}T00:00:00Z`)
-const toIso = date => date.toISOString().split('T')[0]
 
-const shiftDays = (iso, days) => {
-  const date = toUtcDate(iso)
-  date.setUTCDate(date.getUTCDate() + days)
-  return toIso(date)
-}
-
-// Monday-first week containing the selected date
+// Monday-first week containing the selected date, like the period standings
+const weekStart = computed(() => mondayOf(props.modelValue))
 const selectedIndex = computed(
   () => (toUtcDate(props.modelValue).getUTCDay() + 6) % 7,
-)
-const weekStart = computed(() =>
-  shiftDays(props.modelValue, -selectedIndex.value),
 )
 
 const week = computed(() =>
   Array.from({ length: 7 }, (_, i) => {
-    const iso = shiftDays(weekStart.value, i)
+    const iso = addDays(weekStart.value, i)
     const date = toUtcDate(iso)
     return {
       iso,
@@ -65,7 +56,7 @@ const select = iso => {
       type="button"
       class="strip__nav"
       aria-label="Previous day"
-      @click="select(shiftDays(modelValue, -1))"
+      @click="select(addDays(modelValue, -1))"
     >
       <svg
         class="h-4 w-4"
@@ -108,7 +99,7 @@ const select = iso => {
       type="button"
       class="strip__nav"
       aria-label="Next day"
-      @click="select(shiftDays(modelValue, 1))"
+      @click="select(addDays(modelValue, 1))"
     >
       <svg
         class="h-4 w-4"

@@ -113,7 +113,13 @@ function stampText(side) {
 async function submitPick(side) {
   if (!canPick.value) return
   if (pick.value && pick.value.picked_team === side.id) return
-  await gamesStore.submitPick(props.game, side.id, userId.value)
+  // Switching sides keeps the confidence already put on the game
+  await gamesStore.submitPick(
+    props.game,
+    side.id,
+    userId.value,
+    pick.value?.confidence_score || 1,
+  )
 }
 
 async function updateConfidence(confidenceScore) {

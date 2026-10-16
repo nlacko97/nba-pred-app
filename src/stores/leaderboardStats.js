@@ -27,6 +27,11 @@ export const useLeaderboardStatsStore = defineStore('leaderboardStats', () => {
 
   const getCacheKey = (season, postseason) => `${season}-${postseason}`
 
+  // Only the latest request may write: answers can arrive out of order when
+  // the scope or period changes quickly
+  let statsRequest = 0
+  let periodRequest = 0
+
   const fetchStats = async (
     season = selectedSeason.value,
     postseason = isPostseason.value,
@@ -34,18 +39,23 @@ export const useLeaderboardStatsStore = defineStore('leaderboardStats', () => {
     const cacheKey = getCacheKey(season, postseason)
 
     if (cache.value[cacheKey]) {
+      // Supersedes anything still loading
+      statsRequest++
+      loading.value = false
       stats.value = cache.value[cacheKey]
       selectedSeason.value = season
       isPostseason.value = postseason
       return
     }
 
+    const request = ++statsRequest
     loading.value = true
     try {
       const { data, error } = await supabase.rpc('get_leaderboard_stats', {
         p_season: season,
         p_postseason: postseason,
       })
+      if (request !== statsRequest) return
 
       if (error) {
         console.error('Error fetching leaderboard stats:', error)
@@ -60,7 +70,7 @@ export const useLeaderboardStatsStore = defineStore('leaderboardStats', () => {
       console.error('Error fetching leaderboard stats:', error)
       stats.value = []
     } finally {
-      loading.value = false
+      if (request === statsRequest) loading.value = false
     }
   }
 
@@ -106,7 +116,9 @@ export const useLeaderboardStatsStore = defineStore('leaderboardStats', () => {
     const cacheKey = `${type}-${start}`
     // The current period is still being played, so never serve it stale
     const isLive = end >= gameDayIso()
+    const request = ++periodRequest
     if (periodCache.value[cacheKey] && !isLive) {
+      loading.value = false
       periodStats.value = periodCache.value[cacheKey]
       return
     }
@@ -117,6 +129,7 @@ export const useLeaderboardStatsStore = defineStore('leaderboardStats', () => {
         p_start: start,
         p_end: end,
       })
+      if (request !== periodRequest) return
       if (error) {
         console.error('Error fetching period leaderboard:', error)
         periodStats.value = []
@@ -124,8 +137,11 @@ export const useLeaderboardStatsStore = defineStore('leaderboardStats', () => {
       }
       periodStats.value = data || []
       periodCache.value[cacheKey] = periodStats.value
+    } catch (error) {
+      console.error('Error fetching period leaderboard:', error)
+      if (request === periodRequest) periodStats.value = []
     } finally {
-      loading.value = false
+      if (request === periodRequest) loading.value = false
     }
   }
 

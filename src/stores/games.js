@@ -119,6 +119,8 @@ export const useGamesStore = defineStore('games', () => {
     })
 
   const getAllStarMarkets = async () => {
+    const date = selectedDate.value
+    const season = selectedSeason.value
     const cacheKey = getAllStarCacheKey()
     if (allStarMarketsCache.value.has(cacheKey)) {
       allStarMarkets.value = allStarMarketsCache.value.get(cacheKey)
@@ -158,10 +160,13 @@ export const useGamesStore = defineStore('games', () => {
         )
       `,
       )
-      .eq('event_date', selectedDate.value)
-      .eq('season', selectedSeason.value)
+      .eq('event_date', date)
+      .eq('season', season)
       .order('sort_order', { ascending: true })
       .order('lock_at', { ascending: true })
+
+    // The user moved to another day while this was loading
+    if (date !== selectedDate.value) return
 
     if (error) {
       if (error.code !== '42P01') {
@@ -177,15 +182,18 @@ export const useGamesStore = defineStore('games', () => {
   }
 
   const getGames = async () => {
+    // Pinned: the user can move to another day while this one loads
+    const date = selectedDate.value
     loading.value = true
     try {
-      if (gamesCache.value.has(selectedDate.value)) {
-        games.value = gamesCache.value.get(selectedDate.value)
+      if (gamesCache.value.has(date)) {
+        games.value = gamesCache.value.get(date)
       } else {
         let { data, error } = await supabase.rpc('get_games_by_date_v2', {
-          game_date_v2: selectedDate.value,
-          p_season: selectedSeason.value,
+          game_date_v2: date,
+          p_season: seasonForDate(date),
         })
+        if (date !== selectedDate.value) return
         if (error) {
           console.error('Error fetching games:', error)
           games.value = []
@@ -243,14 +251,14 @@ export const useGamesStore = defineStore('games', () => {
           })
 
           // Cache the processed data
-          gamesCache.value.set(selectedDate.value, data)
+          gamesCache.value.set(date, data)
           games.value = data
         }
       }
 
       await getAllStarMarkets()
     } finally {
-      loading.value = false
+      if (date === selectedDate.value) loading.value = false
     }
   }
 
@@ -276,7 +284,12 @@ export const useGamesStore = defineStore('games', () => {
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
       })
-      injuries.value = await injuriesResponse.json()
+      if (!injuriesResponse.ok) {
+        console.error('Error fetching injury report:', injuriesResponse.status)
+        return
+      }
+      const report = await injuriesResponse.json()
+      injuries.value = Array.isArray(report) ? report : null
     } catch (error) {
       console.error('Error fetching injury report:', error)
     }
