@@ -14,7 +14,9 @@ import StandingsSnapshot from '../components/StandingsSnapshot.vue'
 import LeagueLeaders from '../components/LeagueLeaders.vue'
 import PeriodChampions from '../components/PeriodChampions.vue'
 import NewBadgePanel from '../components/NewBadgePanel.vue'
-import { gameDayIso } from '../lib/season'
+import LastNightStub from '../components/LastNightStub.vue'
+import { useDailyResultsStore } from '../stores/dailyResults'
+import { weekStart } from '../lib/season'
 
 const gamesStore = useGamesStore()
 const globalStore = useGlobalStore()
@@ -30,7 +32,8 @@ const {
   remainingConfidence,
   isAllStarWeekend,
 } = storeToRefs(gamesStore)
-const { session } = storeToRefs(globalStore)
+const { session, userId } = storeToRefs(globalStore)
+const dailyResultsStore = useDailyResultsStore()
 
 onMounted(async () => {
   insightsStore.fetchLeagueContext()
@@ -42,9 +45,29 @@ watch(games, value => insightsStore.fetchLines(selectedDate.value, value), {
 })
 
 // Dates are 'YYYY-MM-DD' strings on the US game day, matching the games store
-const todayIso = gameDayIso()
+const todayIso = computed(() => gamesStore.today)
 
-const isTodayOrFuture = computed(() => selectedDate.value >= todayIso)
+const isTodayOrFuture = computed(() => selectedDate.value >= todayIso.value)
+
+// Your score on each game day of the week, written on the day strip, and
+// last game day's result on a stub under today's date
+const stripWeek = computed(() => weekStart(selectedDate.value))
+watch(
+  [userId, stripWeek, todayIso],
+  ([id, week]) => dailyResultsStore.fetchWeekScores(id, week),
+  { immediate: true },
+)
+watch(
+  [userId, todayIso],
+  ([id]) => {
+    if (id) dailyResultsStore.initializeDailyResults(id)
+  },
+  { immediate: true },
+)
+const dayScores = computed(
+  () =>
+    dailyResultsStore.weekScores[`${userId.value}-${stripWeek.value}`] || {},
+)
 
 const hasPickMarkets = computed(
   () => games.value.length > 0 || allStarMarkets.value.length > 0,
@@ -109,12 +132,15 @@ function createAssetUrl(assetPath) {
           <span class="inline-block h-2 w-2 bg-ink" />
           {{ slateLabel }}
         </p>
+        <LastNightStub v-if="session && selectedDate === todayIso" />
       </div>
 
       <DayStrip
         class="reveal"
         style="--i: 2"
         :model-value="selectedDate"
+        :today="todayIso"
+        :scores="dayScores"
         @update:model-value="handleDateChange"
       />
     </section>

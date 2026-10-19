@@ -2,7 +2,12 @@ import { defineStore } from 'pinia'
 import { ref, watch, computed } from 'vue'
 import { supabase } from '../lib/supabaseClient'
 import { useGlobalStore } from './global'
-import { addDays, gameDayIso, seasonForDate } from '../lib/season'
+import {
+  addDays,
+  easternDayIso,
+  gameDayIso,
+  seasonForDate,
+} from '../lib/season'
 
 export const useGamesStore = defineStore('games', () => {
   const globalStore = useGlobalStore()
@@ -14,6 +19,41 @@ export const useGamesStore = defineStore('games', () => {
   const injuries = ref(null)
   const selectedDate = ref(gameDayIso())
   const selectedDateMobile = ref(gameDayIso())
+
+  // Until 6am Eastern "today" is still last night's slate, but only while
+  // it is being played: once every game is Final the new day starts
+  const today = ref(gameDayIso())
+  let todayCheck = null
+  let todayCheckKey = null
+  // Checked again once the clock moves past midnight or 6am Eastern
+  const resolveToday = () => {
+    const gameDay = gameDayIso()
+    const calendarDay = easternDayIso()
+    const key = `${gameDay}|${calendarDay}`
+    if (key !== todayCheckKey) {
+      todayCheckKey = key
+      todayCheck = null
+    }
+    todayCheck ||= (async () => {
+      if (gameDay === calendarDay) {
+        today.value = gameDay
+        return gameDay
+      }
+      const { data, error } = await supabase
+        .from('games')
+        .select('id')
+        .eq('date', gameDay)
+        .neq('status', 'Final')
+        .limit(1)
+      if (error) {
+        console.error('Error checking last night’s slate:', error)
+        return gameDay
+      }
+      today.value = data.length ? gameDay : calendarDay
+      return today.value
+    })()
+    return todayCheck
+  }
   const loading = ref(false)
   const allowPastVotes = ref(false)
   const initialized = ref(false)
@@ -303,6 +343,12 @@ export const useGamesStore = defineStore('games', () => {
     }
 
     allowPastVotes.value = import.meta.env.VITE_ALLOW_PAST_VOTES === 'true'
+    // Open on the new day if last night's games are all done
+    const opening = selectedDate.value
+    const day = await resolveToday()
+    if (selectedDate.value === opening && opening === gameDayIso()) {
+      setSelectedDate(day)
+    }
     await getLast5GamesByTeam()
     await getInjuryReport()
     await getGames()
@@ -573,6 +619,8 @@ export const useGamesStore = defineStore('games', () => {
   }
 
   return {
+    today,
+    resolveToday,
     games,
     allStarMarkets,
     teamResultsLast5Games,

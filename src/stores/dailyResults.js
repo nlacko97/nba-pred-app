@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '../lib/supabaseClient'
-import { addDays, gameDayIso } from '../lib/season'
+import { addDays, easternDayIso, gameDayIso } from '../lib/season'
+import { useGamesStore } from './games'
 
 export const useDailyResultsStore = defineStore('dailyResults', () => {
   const userResults = ref(null)
@@ -12,41 +13,41 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
   const cache = ref({}) // Cache results by game date
   const lastFetchDate = ref(null) // Track when data was last fetched
 
-  // Find the most recent date with completed games
+  // Changes at midnight and 6am Eastern, when "today" may move on
+  const clockKey = () => `${gameDayIso()}|${easternDayIso()}`
+
+  // The most recent game day before today with a Final game or a resolved
+  // All-Star market, within the last week
   const findLastGameDate = async () => {
-    const today = gameDayIso()
-
-    // Search backwards up to 7 days, starting with yesterday
-    for (let i = 1; i <= 7; i++) {
-      const dateStr = addDays(today, -i)
-      const { data, error } = await supabase
+    const today = await useGamesStore().resolveToday()
+    const weekAgo = addDays(today, -7)
+    const [games, markets] = await Promise.all([
+      supabase
         .from('games')
-        .select('date, status')
-        .eq('date', dateStr)
+        .select('date')
         .eq('status', 'Final')
-        .limit(1)
-
-      let hasResolvedAllStarMarket = false
-      const { data: marketRows, error: marketError } = await supabase
+        .lt('date', today)
+        .gte('date', weekAgo)
+        .order('date', { ascending: false })
+        .limit(1),
+      supabase
         .from('all_star_markets')
-        .select('id')
-        .eq('event_date', dateStr)
+        .select('event_date')
         .eq('status', 'resolved')
-        .limit(1)
-
-      if (!marketError && marketRows && marketRows.length > 0) {
-        hasResolvedAllStarMarket = true
-      } else if (marketError && marketError.code !== '42P01') {
-        console.error('Error fetching all-star market date:', marketError)
-      }
-
-      if ((!error && data && data.length > 0) || hasResolvedAllStarMarket) {
-        lastGameDate.value = dateStr
-        return dateStr
-      }
+        .lt('event_date', today)
+        .gte('event_date', weekAgo)
+        .order('event_date', { ascending: false })
+        .limit(1),
+    ])
+    if (games.error) console.error('Error finding last game day:', games.error)
+    if (markets.error && markets.error.code !== '42P01') {
+      console.error('Error fetching all-star market date:', markets.error)
     }
-
-    return null
+    const dates = [games.data?.[0]?.date, markets.data?.[0]?.event_date]
+      .filter(Boolean)
+      .sort()
+    lastGameDate.value = dates.pop() || null
+    return lastGameDate.value
   }
 
   // Get all players' results for the last game day (game and market points,
@@ -78,6 +79,7 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
       correct_picks: row.correct_picks,
       points: Number(row.total_score),
       accuracy: Number(row.accuracy) || 0,
+      rank: Number(row.rank),
     }))
 
     // Cache the results
@@ -89,7 +91,7 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
   const isCacheStale = () => {
     if (!lastFetchDate.value) return true
 
-    return lastFetchDate.value !== gameDayIso()
+    return lastFetchDate.value !== clockKey()
   }
 
   // Clear stale cache
@@ -138,7 +140,7 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
       // Derive user results from all results to ensure consistent data (including points)
       userResults.value = allRes.find(p => p.user_id === userId) || null
       initialized.value = true
-      lastFetchDate.value = gameDayIso()
+      lastFetchDate.value = clockKey()
     } catch (err) {
       console.error('Error initializing daily results:', err)
     } finally {
@@ -157,14 +159,42 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
 
   const formattedDate = computed(() => {
     if (!lastGameDate.value) return ''
-    const date = new Date(lastGameDate.value)
+    const date = new Date(`${lastGameDate.value}T00:00:00Z`)
     return date.toLocaleDateString('en-US', {
+      timeZone: 'UTC',
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
     })
   })
+
+  // A player's points per game day for one Monday–Sunday week, for the
+  // scores written on the day strip: { 'YYYY-MM-DD': { points, correct, picks } }
+  const weekScores = ref({}) // `${userId}-${weekStart}` → scores by day
+
+  const fetchWeekScores = async (userId, weekStart) => {
+    if (!userId) return
+    const { data, error } = await supabase
+      .from('pick_points')
+      .select('game_date, points, correct')
+      .eq('user_id', userId)
+      .eq('settled', true)
+      .gte('game_date', weekStart)
+      .lte('game_date', addDays(weekStart, 6))
+    if (error) {
+      console.error('Error fetching week scores:', error)
+      return
+    }
+    const byDay = {}
+    for (const row of data || []) {
+      const day = (byDay[row.game_date] ||= { points: 0, correct: 0, picks: 0 })
+      day.points += row.points
+      day.picks += 1
+      if (row.correct) day.correct += 1
+    }
+    weekScores.value[`${userId}-${weekStart}`] = byDay
+  }
 
   // Force refresh data (useful for manual refresh or when detecting stale data)
   const refreshDailyResults = async userId => {
@@ -173,6 +203,8 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
   }
 
   return {
+    weekScores,
+    fetchWeekScores,
     userResults,
     allPlayerResults,
     loading,

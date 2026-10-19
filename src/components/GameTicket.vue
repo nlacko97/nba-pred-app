@@ -196,11 +196,20 @@ const lines = computed(() => {
   )
 })
 
-// The stored snapshot is what the upset bonus is scored on, so prefer it
-// over the live ESPN number
-const homeWinPct = computed(() => {
-  if (props.game.home_win_prob != null) return Number(props.game.home_win_prob)
-  return lines.value?.homeWinPct ?? null
+// ESPN's pre-tip snapshot, the same number the upset bonus is scored on
+const homeWinPct = computed(() =>
+  props.game.home_win_prob != null ? Number(props.game.home_win_prob) : null,
+)
+
+// 'DET leads 2–1' or 'Tied 1–1', from earlier meetings this season
+const seriesSummary = computed(() => {
+  const home = props.game.series_home_wins || 0
+  const away = props.game.series_away_wins || 0
+  if (!home && !away) return null
+  if (home === away) return `Tied ${home}–${away}`
+  return home > away
+    ? `${props.game.home_team_abbreviation} leads ${home}–${away}`
+    : `${props.game.away_team_abbreviation} leads ${away}–${home}`
 })
 
 const UPSET_LINE = 30
@@ -227,7 +236,9 @@ function earnedUpset(side) {
 }
 
 const showLines = computed(
-  () => isScheduled.value && (!!lines.value || homeWinPct.value != null),
+  () =>
+    isScheduled.value &&
+    (!!lines.value || homeWinPct.value != null || !!seriesSummary.value),
 )
 
 const hasFooter = computed(
@@ -386,22 +397,22 @@ const hasFooter = computed(
             <span class="flex-1 bg-ink/20" />
           </div>
         </div>
-        <dl v-if="lines" class="lines__facts">
-          <div v-if="lines.spread">
+        <dl v-if="lines || seriesSummary" class="lines__facts">
+          <div v-if="lines?.spread">
             <dt class="label">Spread</dt>
             <dd class="num">{{ lines.spread }}</dd>
           </div>
-          <div v-if="lines.total">
+          <div v-if="lines?.total">
             <dt class="label">Total</dt>
             <dd class="num">{{ lines.total }}</dd>
           </div>
-          <div v-if="lines.venue" class="hidden sm:block">
+          <div v-if="lines?.venue" class="hidden sm:block">
             <dt class="label">Arena</dt>
             <dd class="truncate">{{ lines.venue }}</dd>
           </div>
-          <div v-if="lines.seriesSummary" class="hidden sm:block">
+          <div v-if="seriesSummary" class="hidden sm:block">
             <dt class="label">Series</dt>
-            <dd class="truncate">{{ lines.seriesSummary }}</dd>
+            <dd class="truncate">{{ seriesSummary }}</dd>
           </div>
         </dl>
       </div>

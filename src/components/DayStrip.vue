@@ -1,18 +1,26 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { addDays, gameDayIso, weekStart as mondayOf } from '../lib/season'
+import { addDays, weekStart as mondayOf } from '../lib/season'
 
 const props = defineProps({
   modelValue: {
     type: String,
     required: true,
   },
+  today: {
+    type: String,
+    required: true,
+  },
+  // { 'YYYY-MM-DD': { points, correct, picks } } for graded game days
+  scores: {
+    type: Object,
+    default: () => ({}),
+  },
 })
 
 const emit = defineEmits(['update:modelValue'])
 
 // Dates are 'YYYY-MM-DD' strings, matching the games store
-const todayIso = gameDayIso()
 const toUtcDate = iso => new Date(`${iso}T00:00:00Z`)
 
 // Monday-first week containing the selected date, like the period standings
@@ -32,7 +40,8 @@ const week = computed(() =>
         timeZone: 'UTC',
       }),
       day: date.getUTCDate(),
-      isToday: iso === todayIso,
+      isToday: iso === props.today,
+      score: props.scores[iso] || null,
     }
   }),
 )
@@ -84,12 +93,35 @@ const select = iso => {
             class="strip__day"
             :class="{ 'is-selected': i === selectedIndex }"
             :aria-pressed="i === selectedIndex"
-            :aria-label="day.iso"
+            :aria-label="
+              day.score
+                ? `${day.iso}: ${day.score.correct} of ${day.score.picks} correct, ${day.score.points} points`
+                : day.iso
+            "
             @click="select(day.iso)"
           >
             <span class="strip__dow">{{ day.dow }}</span>
             <span class="strip__num num">{{ day.day }}</span>
-            <span class="strip__today" :class="{ 'opacity-0': !day.isToday }" />
+            <!-- Your score, scrawled under the day like a tally -->
+            <span class="strip__foot">
+              <span
+                v-if="day.score"
+                class="strip__score num"
+                :class="
+                  day.score.correct * 2 >= day.score.picks
+                    ? 'is-win'
+                    : 'is-loss'
+                "
+                :title="`${day.score.correct}–${day.score.picks - day.score.correct}`"
+                aria-hidden="true"
+                >+{{ day.score.points }}</span
+              >
+              <span
+                v-else
+                class="strip__today"
+                :class="{ 'opacity-0': !day.isToday }"
+              />
+            </span>
           </button>
         </div>
       </Transition>
@@ -240,6 +272,35 @@ const select = iso => {
   height: 5px;
   border-radius: 999px;
   background: rgb(var(--c-accent));
+}
+/* One slot for the today dot or your score, so the strip never jumps */
+.strip__foot {
+  display: flex;
+  height: 0.9rem;
+  align-items: center;
+  justify-content: center;
+}
+.strip__score {
+  font-family: 'Permanent Marker', 'Big Shoulders Display', cursive;
+  font-size: 0.85rem;
+  line-height: 1;
+  transform: rotate(-6deg);
+  animation: score-in 0.35s ease-out both;
+}
+.strip__score.is-win {
+  color: rgb(var(--c-win));
+}
+.strip__score.is-loss {
+  color: rgb(var(--c-loss));
+}
+.strip__day.is-selected .strip__score {
+  color: rgb(var(--c-paper));
+}
+@keyframes score-in {
+  from {
+    opacity: 0;
+    transform: rotate(-6deg) scale(1.6);
+  }
 }
 
 /* Week-to-week slide */

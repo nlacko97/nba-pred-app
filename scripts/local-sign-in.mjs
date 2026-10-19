@@ -7,45 +7,9 @@
 
 import { execSync } from 'node:child_process'
 import process from 'node:process'
+import { call } from './local-stack.mjs'
 
 const APP_URL = 'http://localhost:5174/games'
-
-const status = Object.fromEntries(
-  execSync('npx supabase status -o env', { encoding: 'utf8', stdio: 'pipe' })
-    .split('\n')
-    .map(line => line.match(/^([A-Z_]+)="?([^"]*)"?$/))
-    .filter(Boolean)
-    .map(([, key, value]) => [key, value]),
-)
-
-const apiUrl = status.API_URL
-const serviceKey = status.SERVICE_ROLE_KEY
-if (!apiUrl || !serviceKey) {
-  console.error(
-    'Local Supabase is not running. Start it with: npx supabase start',
-  )
-  process.exit(1)
-}
-// Never point this at a hosted project
-if (!/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(apiUrl)) {
-  console.error(`Refusing to run against ${apiUrl}: local stack only`)
-  process.exit(1)
-}
-
-const headers = {
-  apikey: serviceKey,
-  Authorization: `Bearer ${serviceKey}`,
-  'Content-Type': 'application/json',
-}
-
-async function call(path, options = {}) {
-  const response = await fetch(`${apiUrl}${path}`, { headers, ...options })
-  const body = await response.json()
-  if (!response.ok) {
-    throw new Error(`${path}: ${response.status} ${JSON.stringify(body)}`)
-  }
-  return body
-}
 
 const profiles = await call(
   '/rest/v1/profiles?select=id,full_name,username&order=full_name',

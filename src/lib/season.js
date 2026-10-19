@@ -18,6 +18,9 @@ const easternDate = new Intl.DateTimeFormat('en-CA', {
 export const gameDayIso = (now = new Date()) =>
   easternDate.format(new Date(now.getTime() - ROLLOVER_HOURS * 36e5))
 
+// The plain calendar date in the US East, with no rollover
+export const easternDayIso = (now = new Date()) => easternDate.format(now)
+
 export const addDays = (iso, days) => {
   const date = new Date(`${iso}T00:00:00Z`)
   date.setUTCDate(date.getUTCDate() + days)

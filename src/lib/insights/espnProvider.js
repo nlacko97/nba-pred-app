@@ -15,54 +15,34 @@ async function getJson(url) {
   return response.json()
 }
 
-async function getPredictor(eventId) {
-  try {
-    const summary = await getJson(`${SITE}/summary?event=${eventId}`)
-    const projection = parseFloat(summary.predictor?.homeTeam?.gameProjection)
-    return {
-      homeWinPct: Number.isFinite(projection) ? projection : null,
-      seriesSummary: summary.seasonseries?.[0]?.summary || null,
-    }
-  } catch (error) {
-    console.error('Error fetching ESPN summary:', error)
-    return { homeWinPct: null, seriesSummary: null }
-  }
-}
-
+// One scoreboard request per day. Win probability is not on it: the games
+// table keeps ESPN's pre-tip snapshot (snapshot-win-probs), and the season
+// series comes from our own results (get_games_by_date_v2).
 export async function getGameLines(date) {
   const scoreboard = await getJson(
     `${SITE}/scoreboard?dates=${date.replaceAll('-', '')}`,
   )
 
-  const entries = await Promise.all(
-    (scoreboard.events || []).map(async event => {
-      const competition = event.competitions?.[0] || {}
-      const teams = competition.competitors || []
-      const home = teams.find(team => team.homeAway === 'home')
-      const away = teams.find(team => team.homeAway === 'away')
-      if (!home || !away) return null
+  const entries = (scoreboard.events || []).map(event => {
+    const competition = event.competitions?.[0] || {}
+    const teams = competition.competitors || []
+    const home = teams.find(team => team.homeAway === 'home')
+    const away = teams.find(team => team.homeAway === 'away')
+    if (!home || !away) return null
 
-      const odds = competition.odds?.[0] || {}
-      const isUpcoming = event.status?.type?.state === 'pre'
-      const predictor = isUpcoming
-        ? await getPredictor(event.id)
-        : { homeWinPct: null, seriesSummary: null }
-
-      return [
-        matchupKey(
-          toAppAbbr(away.team?.abbreviation),
-          toAppAbbr(home.team?.abbreviation),
-        ),
-        {
-          spread: odds.details || null,
-          total: odds.overUnder ?? null,
-          homeWinPct: predictor.homeWinPct,
-          venue: competition.venue?.fullName || null,
-          seriesSummary: predictor.seriesSummary,
-        },
-      ]
-    }),
-  )
+    const odds = competition.odds?.[0] || {}
+    return [
+      matchupKey(
+        toAppAbbr(away.team?.abbreviation),
+        toAppAbbr(home.team?.abbreviation),
+      ),
+      {
+        spread: odds.details || null,
+        total: odds.overUnder ?? null,
+        venue: competition.venue?.fullName || null,
+      },
+    ]
+  })
 
   return Object.fromEntries(entries.filter(Boolean))
 }

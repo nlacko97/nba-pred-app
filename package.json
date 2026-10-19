@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "eslint . --fix",
     "format": "prettier --write src/",
-    "local:sign-in": "node scripts/local-sign-in.mjs"
+    "local:sign-in": "node scripts/local-sign-in.mjs",
+    "local:demo-week": "node scripts/local-demo-week.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.6",

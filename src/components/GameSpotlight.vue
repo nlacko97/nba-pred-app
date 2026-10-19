@@ -15,17 +15,18 @@ const { games, selectedDate } = storeToRefs(gamesStore)
 const spotlight = computed(() => {
   const candidates = games.value
     .filter(game => gamesStore.isValidDate(game.game_status))
+    .filter(game => game.home_win_prob != null)
     .map(game => ({
       game,
-      lines: insightsStore.linesFor(
-        selectedDate.value,
-        matchupKey(game.away_team_abbreviation, game.home_team_abbreviation),
-      ),
+      homeWinPct: Number(game.home_win_prob),
+      lines:
+        insightsStore.linesFor(
+          selectedDate.value,
+          matchupKey(game.away_team_abbreviation, game.home_team_abbreviation),
+        ) || {},
     }))
-    .filter(entry => entry.lines?.homeWinPct != null)
     .sort(
-      (a, b) =>
-        Math.abs(a.lines.homeWinPct - 50) - Math.abs(b.lines.homeWinPct - 50),
+      (a, b) => Math.abs(a.homeWinPct - 50) - Math.abs(b.homeWinPct - 50),
     )
   return candidates[0] || null
 })
@@ -50,12 +51,12 @@ const tipTime = computed(() => {
           {
             abbr: spotlight.game.away_team_abbreviation,
             name: spotlight.game.away_team_name,
-            pct: 100 - spotlight.lines.homeWinPct,
+            pct: 100 - spotlight.homeWinPct,
           },
           {
             abbr: spotlight.game.home_team_abbreviation,
             name: spotlight.game.home_team_name,
-            pct: spotlight.lines.homeWinPct,
+            pct: spotlight.homeWinPct,
           },
         ]"
         :key="side.abbr"
@@ -76,7 +77,7 @@ const tipTime = computed(() => {
     <div class="mt-3 flex h-2">
       <span
         class="bg-ink"
-        :style="{ width: `${100 - spotlight.lines.homeWinPct}%` }"
+        :style="{ width: `${100 - spotlight.homeWinPct}%` }"
       />
       <span class="flex-1 bg-ink/20" />
     </div>
