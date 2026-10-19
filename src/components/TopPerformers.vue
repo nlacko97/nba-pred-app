@@ -1,74 +1,81 @@
 <script setup>
-import { onMounted, onUnmounted, computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useDailyResultsStore } from '../stores/dailyResults'
+import { useGamesStore } from '../stores/games'
 import { useGlobalStore } from '../stores/global'
 
+// The podium for the day being viewed. While that day is still being played
+// it is the night so far, refreshed as games finish.
 const dailyResultsStore = useDailyResultsStore()
-const globalStore = useGlobalStore()
-const { userId } = storeToRefs(globalStore)
-const { allPlayerResults, userResults, loading, formattedDate } =
-  storeToRefs(dailyResultsStore)
+const gamesStore = useGamesStore()
+const { selectedDate, today, games } = storeToRefs(gamesStore)
+const { userId } = storeToRefs(useGlobalStore())
+
+const results = ref([])
+const shownDate = ref(null)
+let request = 0
+
+// The last results stay up while the next day loads, so the rail never jumps
+async function load() {
+  const date = selectedDate.value
+  const current = ++request
+  const rows =
+    date > today.value ? [] : await dailyResultsStore.getDayResults(date)
+  if (current !== request) return
+  results.value = rows
+  shownDate.value = date
+}
+
+watch([selectedDate, today], load, { immediate: true })
+
+const isLive = computed(
+  () =>
+    shownDate.value === today.value &&
+    games.value.some(game => game.game_status !== 'Final'),
+)
+
+// Catch games finishing while the page is open
+const refreshIfLive = () => {
+  if (!document.hidden && selectedDate.value === today.value) load()
+}
+let refreshTimer = null
+onMounted(() => {
+  document.addEventListener('visibilitychange', refreshIfLive)
+  window.addEventListener('focus', refreshIfLive)
+  refreshTimer = setInterval(refreshIfLive, 300000)
+})
+onUnmounted(() => {
+  clearInterval(refreshTimer)
+  document.removeEventListener('visibilitychange', refreshIfLive)
+  window.removeEventListener('focus', refreshIfLive)
+})
+
+const formattedDate = computed(() =>
+  shownDate.value
+    ? new Date(`${shownDate.value}T00:00:00Z`).toLocaleDateString('en-US', {
+        timeZone: 'UTC',
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+      })
+    : '',
+)
 
 const isCollapsed = ref(false)
-let stalenessCheckInterval = null
-
-const checkAndRefreshIfStale = () => {
-  if (dailyResultsStore.isCacheStale() && userId.value) {
-    dailyResultsStore.refreshDailyResults(userId.value)
-  }
-}
-
-const handleVisibilityChange = () => {
-  // When user returns to the tab/window, immediately check for stale data
-  if (!document.hidden) {
-    checkAndRefreshIfStale()
-  }
-}
-
-onMounted(() => {
-  if (userId.value) {
-    // Check if cache is stale and refresh if needed
-    if (dailyResultsStore.isCacheStale()) {
-      dailyResultsStore.refreshDailyResults(userId.value)
-    } else {
-      dailyResultsStore.initializeDailyResults(userId.value)
-    }
-  }
-
-  // Listen for page visibility changes (tab switching, laptop wake, etc.)
-  document.addEventListener('visibilitychange', handleVisibilityChange)
-
-  // Also listen for focus event (when window regains focus)
-  window.addEventListener('focus', checkAndRefreshIfStale)
-
-  // Background check every 5 minutes as fallback
-  // (in case user keeps page visible but inactive)
-  stalenessCheckInterval = setInterval(() => {
-    checkAndRefreshIfStale()
-  }, 300000) // Check every 5 minutes
-})
-
-onUnmounted(() => {
-  if (stalenessCheckInterval) {
-    clearInterval(stalenessCheckInterval)
-  }
-  document.removeEventListener('visibilitychange', handleVisibilityChange)
-  window.removeEventListener('focus', checkAndRefreshIfStale)
-})
-
-const topThree = computed(() => {
-  return allPlayerResults.value.slice(0, 3)
-})
-
-const userInTopThree = computed(() => {
-  if (!userResults.value) return false
-  return topThree.value.some(p => p.user_id === userResults.value.user_id)
-})
-
 const toggleCollapse = () => {
   isCollapsed.value = !isCollapsed.value
 }
+
+const topThree = computed(() => results.value.slice(0, 3))
+const userResults = computed(
+  () => results.value.find(row => row.user_id === userId.value) || null,
+)
+const userInTopThree = computed(
+  () =>
+    !!userResults.value &&
+    topThree.value.some(row => row.user_id === userResults.value.user_id),
+)
 
 // Podium order: silver, gold, bronze
 const podium = computed(() => {
@@ -85,7 +92,7 @@ const initial = player =>
 </script>
 
 <template>
-  <section v-if="!loading && topThree.length > 0" class="sheet reveal">
+  <section v-if="topThree.length > 0" class="sheet reveal">
     <button
       type="button"
       class="flex w-full items-start justify-between gap-3 p-5 text-left"
@@ -94,9 +101,12 @@ const initial = player =>
     >
       <span>
         <span class="display block text-3xl">Top performers</span>
-        <span class="label mt-2 block !tracking-[0.14em]">{{
-          formattedDate
-        }}</span>
+        <span class="label mt-2 flex items-center gap-2 !tracking-[0.14em]">
+          {{ formattedDate }}
+          <span v-if="isLive" class="live"
+            ><span class="live__dot" />So far</span
+          >
+        </span>
       </span>
       <svg
         class="mt-1 h-5 w-5 shrink-0 transition-transform duration-300"
@@ -156,7 +166,7 @@ const initial = player =>
         class="mt-4 flex items-center gap-3 border-[1.5px] border-dashed border-accent p-3"
       >
         <span class="display num w-10 text-3xl text-accent">{{
-          dailyResultsStore.userRank
+          userResults.rank
         }}</span>
         <span class="avatar h-9 w-9">
           <img
@@ -186,6 +196,19 @@ const initial = player =>
 </template>
 
 <style scoped>
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: rgb(var(--c-accent));
+}
+.live__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}
 .step {
   position: relative;
   width: 100%;

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { supabase } from '../lib/supabaseClient'
 import { addDays, easternDayIso, gameDayIso } from '../lib/season'
 import { useGamesStore } from './games'
@@ -50,12 +50,12 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
     return lastGameDate.value
   }
 
-  // Get all players' results for the last game day (game and market points,
-  // ranked like the period leaderboards)
-  const getAllPlayersDailyResults = async gameDate => {
+  // Every player's results for one game day (game and market points, ranked
+  // like the period leaderboards). Today's are never cached: games are
+  // still finishing.
+  const getDayResults = async gameDate => {
     if (!gameDate) return []
 
-    // Check cache first
     if (cache.value[gameDate]) {
       return cache.value[gameDate]
     }
@@ -82,8 +82,7 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
       rank: Number(row.rank),
     }))
 
-    // Cache the results
-    cache.value[gameDate] = dayResults
+    if (gameDate < useGamesStore().today) cache.value[gameDate] = dayResults
     return dayResults
   }
 
@@ -134,7 +133,7 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
       }
 
       // Fetch all players results
-      const allRes = await getAllPlayersDailyResults(gameDate)
+      const allRes = await getDayResults(gameDate)
 
       allPlayerResults.value = allRes
       // Derive user results from all results to ensure consistent data (including points)
@@ -147,27 +146,6 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
       loading.value = false
     }
   }
-
-  // Computed values
-  const userRank = computed(() => {
-    if (!userResults.value || !allPlayerResults.value.length) return null
-    const index = allPlayerResults.value.findIndex(
-      p => p.user_id === userResults.value.user_id,
-    )
-    return index !== -1 ? index + 1 : null
-  })
-
-  const formattedDate = computed(() => {
-    if (!lastGameDate.value) return ''
-    const date = new Date(`${lastGameDate.value}T00:00:00Z`)
-    return date.toLocaleDateString('en-US', {
-      timeZone: 'UTC',
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
-  })
 
   // A player's points per game day for one Monday–Sunday week, for the
   // scores written on the day strip: { 'YYYY-MM-DD': { points, correct, picks } }
@@ -209,8 +187,7 @@ export const useDailyResultsStore = defineStore('dailyResults', () => {
     allPlayerResults,
     loading,
     lastGameDate,
-    userRank,
-    formattedDate,
+    getDayResults,
     initializeDailyResults,
     refreshDailyResults,
     isCacheStale,

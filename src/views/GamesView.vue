@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useGamesStore } from '../stores/games'
 import { useGlobalStore } from '../stores/global'
@@ -64,6 +64,25 @@ watch(
   },
   { immediate: true },
 )
+// A new game day can start while the page stays open: refresh last night's
+// result when the tab comes back or every few minutes
+const refreshIfStale = () => {
+  if (document.hidden || !userId.value) return
+  if (dailyResultsStore.isCacheStale()) {
+    dailyResultsStore.refreshDailyResults(userId.value)
+  }
+}
+let staleTimer = null
+onMounted(() => {
+  document.addEventListener('visibilitychange', refreshIfStale)
+  window.addEventListener('focus', refreshIfStale)
+  staleTimer = setInterval(refreshIfStale, 300000)
+})
+onUnmounted(() => {
+  clearInterval(staleTimer)
+  document.removeEventListener('visibilitychange', refreshIfStale)
+  window.removeEventListener('focus', refreshIfStale)
+})
 const dayScores = computed(
   () =>
     dailyResultsStore.weekScores[`${userId.value}-${stripWeek.value}`] || {},
