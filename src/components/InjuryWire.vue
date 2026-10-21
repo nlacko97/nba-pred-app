@@ -35,7 +35,7 @@ const injuries = computed(() =>
   <RailPanel
     v-if="injuries.length"
     title="Injury report"
-    :meta="`${injuries.length} players listed · RotoWire`"
+    :meta="`${injuries.length} players listed · ESPN`"
   >
     <ul class="divide-y divide-ink/10">
       <li

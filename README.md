@@ -45,7 +45,7 @@ public site API (no key, CORS-enabled, unofficial) in
 `src/lib/insights/espnProvider.js`. Before a season's first game, standings and
 leaders fall back to the previous season's final numbers, labelled as such.
 
-The injury report module uses the existing RotoWire feed (`get-injuries`).
+The injury report module reads ESPN's NBA injury report through `get-injuries`.
 
 The schedule comes from balldontlie via the `refresh-schedule` edge function.
 It loads the next 30 days by default; call it with `?full=1` to load the
