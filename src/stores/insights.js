@@ -10,8 +10,15 @@ export const useInsightsStore = defineStore('insights', () => {
   const leaders = ref([])
   const leadersLabel = ref(null)
 
+  // How many games were final when each day was fetched: a game finishing
+  // while the page is open refetches the day so its recap shows up
+  const finalsAtFetch = {}
+
   const fetchLines = async (date, games) => {
-    if (!games.length || linesByDate.value[date]) return
+    if (!games.length) return
+    const finals = games.filter(game => game.game_status === 'Final').length
+    if (linesByDate.value[date] && finals <= (finalsAtFetch[date] ?? 0)) return
+    finalsAtFetch[date] = finals
     try {
       linesByDate.value[date] = await insightsProvider.getGameLines(date, games)
     } catch (error) {

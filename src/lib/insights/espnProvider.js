@@ -15,6 +15,57 @@ async function getJson(url) {
   return response.json()
 }
 
+const RECAP_STATS = { points: 'PTS', rebounds: 'REB', assists: 'AST' }
+
+// Full headshots are ~180 KB; ESPN's image combiner serves a 96px crop
+function smallHeadshot(url) {
+  if (!url) return null
+  try {
+    const { pathname } = new URL(url)
+    return `https://a.espncdn.com/combiner/i?img=${pathname}&w=96&h=70`
+  } catch {
+    return null
+  }
+}
+
+function teamLeaders(team) {
+  return (team.leaders || [])
+    .filter(category => RECAP_STATS[category.name])
+    .map(category => {
+      const leader = category.leaders?.[0]
+      if (!leader?.athlete) return null
+      return {
+        stat: RECAP_STATS[category.name],
+        value: leader.displayValue ?? String(leader.value ?? ''),
+        name: leader.athlete.displayName || leader.athlete.shortName,
+        shortName: leader.athlete.shortName || leader.athlete.displayName,
+        headshot: smallHeadshot(leader.athlete.headshot),
+      }
+    })
+    .filter(Boolean)
+}
+
+// Finished games carry each side's stat leaders, quarter scores and a
+// one-line recap on the same scoreboard, so they cost no extra request
+function gameRecap(event, competition, away, home) {
+  if (!event.status?.type?.completed && !competition.status?.type?.completed) {
+    return null
+  }
+  const periods = team => (team.linescores || []).map(line => line.value)
+  const headline = competition.headlines?.[0]
+  const recap = {
+    headline: headline?.shortLinkText || headline?.description || null,
+    leaders: { away: teamLeaders(away), home: teamLeaders(home) },
+    periods: { away: periods(away), home: periods(home) },
+  }
+  const hasAny =
+    recap.headline ||
+    recap.leaders.away.length ||
+    recap.leaders.home.length ||
+    recap.periods.away.length
+  return hasAny ? recap : null
+}
+
 // One scoreboard request per day. Win probability is not on it: the games
 // table keeps ESPN's pre-tip snapshot (snapshot-win-probs), and the season
 // series comes from our own results (get_games_by_date_v2).
@@ -40,6 +91,7 @@ export async function getGameLines(date) {
         spread: odds.details || null,
         total: odds.overUnder ?? null,
         venue: competition.venue?.fullName || null,
+        recap: gameRecap(event, competition, away, home),
       },
     ]
   })

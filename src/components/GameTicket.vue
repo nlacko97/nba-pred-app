@@ -26,6 +26,7 @@ const { session, userId } = storeToRefs(globalStore)
 
 const showBallots = ref(false)
 const showInjuries = ref(false)
+const showPeriods = ref(false)
 
 const pick = computed(() => props.game.picks[userId.value])
 const isScheduled = computed(() =>
@@ -184,17 +185,49 @@ const showInjuryToggle = computed(
   () => injuryCount.value > 0 && isScheduled.value,
 )
 const showBallotToggle = computed(() => isFinal.value && crowd.value.total > 0)
-// Pre-game lines (spread, total, win probability) from the insights provider
-const lines = computed(() => {
-  if (!isScheduled.value) return null
-  return insightsStore.linesFor(
+// A 100–0 split says nothing the Who picked list doesn't
+const showSplit = computed(
+  () => showBallotToggle.value && crowd.value.away > 0 && crowd.value.home > 0,
+)
+const gameLine = computed(() =>
+  insightsStore.linesFor(
     gamesStore.selectedDate,
     matchupKey(
       props.game.away_team_abbreviation,
       props.game.home_team_abbreviation,
     ),
+  ),
+)
+// Pre-game lines (spread, total, win probability) from the insights provider,
+// shown until tip-off
+const isPregame = computed(() => isScheduled.value && !isLocked.value)
+const lines = computed(() => (isPregame.value ? gameLine.value : null))
+
+// After the final: ESPN's one-line recap, stat leaders and quarter scores.
+// ESPN only sends one for a completed game, so it can show before our
+// schedule refresh marks the game Final.
+const recap = computed(() => gameLine.value?.recap || null)
+const hasLeaders = computed(
+  () =>
+    !!(recap.value?.leaders.away.length || recap.value?.leaders.home.length),
+)
+const periodLabels = computed(() => {
+  const count = Math.max(
+    recap.value?.periods.away.length || 0,
+    recap.value?.periods.home.length || 0,
   )
+  return Array.from({ length: count }, (_, idx) => {
+    if (idx < 4) return `Q${idx + 1}`
+    return idx === 4 ? 'OT' : `${idx - 3}OT`
+  })
 })
+const showPeriodToggle = computed(() => periodLabels.value.length > 0)
+const periodRows = computed(() =>
+  sides.value.map(side => ({
+    ...side,
+    periods: recap.value?.periods[side.key] || [],
+  })),
+)
 
 // ESPN's pre-tip snapshot, the same number the upset bonus is scored on
 const homeWinPct = computed(() =>
@@ -237,13 +270,15 @@ function earnedUpset(side) {
 
 const showLines = computed(
   () =>
-    isScheduled.value &&
+    isPregame.value &&
+    !recap.value &&
     (!!lines.value || homeWinPct.value != null || !!seriesSummary.value),
 )
 
 const hasFooter = computed(
   () =>
     showLines.value ||
+    !!recap.value ||
     showUndo.value ||
     (session.value && pick.value) ||
     showBallotToggle.value ||
@@ -417,6 +452,9 @@ const hasFooter = computed(
         </dl>
       </div>
 
+      <!-- Recap -->
+      <p v-if="recap?.headline" class="recap">{{ recap.headline }}</p>
+
       <div
         v-if="session && pick"
         class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6"
@@ -447,7 +485,7 @@ const hasFooter = computed(
       </div>
 
       <!-- Crowd split -->
-      <div v-if="showBallotToggle" class="px-4 pb-1 pt-3 sm:px-6">
+      <div v-if="showSplit" class="px-4 pb-1 pt-3 sm:px-6">
         <div class="mb-1.5 flex justify-between">
           <span class="label"
             >{{ game.away_team_abbreviation }} · {{ crowd.away }}</span
@@ -472,9 +510,19 @@ const hasFooter = computed(
       </div>
 
       <div
-        v-if="showBallotToggle || showInjuryToggle"
+        v-if="showBallotToggle || showInjuryToggle || showPeriodToggle"
         class="flex flex-wrap gap-2 px-4 py-3 sm:px-6"
       >
+        <button
+          v-if="showPeriodToggle"
+          type="button"
+          class="toggle"
+          :class="{ 'is-on': showPeriods }"
+          :aria-expanded="showPeriods"
+          @click="showPeriods = !showPeriods"
+        >
+          By quarter
+        </button>
         <button
           v-if="showBallotToggle"
           type="button"
@@ -496,6 +544,38 @@ const hasFooter = computed(
           <span class="h-1.5 w-1.5 rounded-full bg-loss" />
           Injury report <span class="num text-muted">{{ injuryCount }}</span>
         </button>
+      </div>
+
+      <!-- Quarter scores -->
+      <div
+        v-if="showPeriods && showPeriodToggle"
+        class="overflow-x-auto border-t border-dashed border-ink/25 px-4 py-4 sm:px-6"
+      >
+        <table class="periods num">
+          <thead>
+            <tr>
+              <th scope="col"><span class="sr-only">Team</span></th>
+              <th v-for="label in periodLabels" :key="label" scope="col">
+                {{ label }}
+              </th>
+              <th scope="col">T</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in periodRows" :key="row.key">
+              <th scope="row">{{ row.abbr }}</th>
+              <td v-for="(label, idx) in periodLabels" :key="label">
+                {{ row.periods[idx] ?? '–' }}
+              </td>
+              <td
+                class="periods__total"
+                :class="{ 'is-beaten': winnerId && winnerId !== row.id }"
+              >
+                {{ row.score }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <!-- Who picked -->
@@ -569,6 +649,51 @@ const hasFooter = computed(
           <p v-else class="kicker text-sm">No injuries reported.</p>
         </div>
       </div>
+      <!-- Stats -->
+      <section
+        v-if="hasLeaders"
+        class="stats"
+        :aria-label="`${game.away_team_name} at ${game.home_team_name} stat leaders`"
+      >
+        <p class="label mb-3">Stats</p>
+        <div class="stats__grid">
+          <div
+            v-for="side in sides"
+            :key="side.key"
+            class="leaders"
+            :class="`leaders--${side.key}`"
+          >
+            <p class="label mb-2">{{ side.abbr }}</p>
+            <ul class="space-y-2.5" :aria-label="`${side.name} leaders`">
+              <li
+                v-for="leader in recap.leaders[side.key]"
+                :key="leader.stat"
+                class="leader"
+              >
+                <span class="leader__shot">
+                  <img
+                    v-if="leader.headshot"
+                    :src="leader.headshot"
+                    alt=""
+                    loading="lazy"
+                    @error="$event.target.remove()"
+                  />
+                </span>
+                <span class="leader__text">
+                  <span class="leader__line">
+                    <span class="leader__value num">{{ leader.value }}</span>
+                    <span class="label">{{ leader.stat }}</span>
+                  </span>
+                  <span class="leader__name">
+                    <span class="sm:hidden">{{ leader.shortName }}</span>
+                    <span class="hidden sm:inline">{{ leader.name }}</span>
+                  </span>
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
     </div>
   </article>
 </template>
@@ -1024,6 +1149,125 @@ const hasFooter = computed(
   max-width: 11rem;
   font-weight: 600;
   font-size: 0.875rem;
+}
+.recap {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px dashed rgb(var(--c-ink) / 0.25);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+@media (min-width: 640px) {
+  .recap {
+    padding: 0.95rem 1.5rem;
+  }
+}
+.stats {
+  padding: 1rem;
+  border-top: 1.5px solid rgb(var(--c-edge));
+}
+@media (min-width: 640px) {
+  .stats {
+    padding: 1.1rem 1.5rem 1.25rem;
+  }
+}
+.stats:first-child {
+  border-top: 0;
+}
+.stats__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+.leaders--home {
+  text-align: right;
+}
+.leader {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.leaders--home .leader {
+  flex-direction: row-reverse;
+}
+/* Same paper puck as the team logos, so cut-out headshots sit on light */
+.leader__shot {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #fbf8f1;
+  border: 1.5px solid rgb(var(--c-edge));
+}
+.leader__shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+@media (min-width: 640px) {
+  .leader__shot {
+    width: 48px;
+    height: 48px;
+  }
+}
+.leader__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.leader__line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+.leaders--home .leader__line {
+  justify-content: flex-end;
+}
+.leader__value {
+  font-family: 'Big Shoulders Display', Impact, sans-serif;
+  font-weight: 800;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+.leader__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.periods {
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.periods th,
+.periods td {
+  padding: 0.2rem 0.6rem;
+  text-align: right;
+}
+.periods thead th {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: rgb(var(--c-muted));
+}
+.periods tbody th {
+  padding-left: 0;
+  text-align: left;
+  font-weight: 700;
+}
+.periods__total {
+  font-family: 'Big Shoulders Display', Impact, sans-serif;
+  font-weight: 900;
+  font-size: 1rem;
+  border-left: 1.5px solid rgb(var(--c-ink) / 0.25);
+}
+.periods__total.is-beaten {
+  color: rgb(var(--c-muted));
 }
 .split {
   display: flex;
